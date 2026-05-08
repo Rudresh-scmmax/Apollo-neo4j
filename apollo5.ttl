@@ -1,0 +1,2616 @@
+@prefix : <http://www.apollo-procurement.org/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix gist: <https://w3id.org/semanticarts/ns/ontology/gist/> .
+
+<http://www.apollo-procurement.org/ontology> rdf:type owl:Ontology ;
+                                             owl:imports <https://w3id.org/semanticarts/ontology/gistCore> ;
+                                             rdfs:comment "The Apollo Procurement Ontology. Complete version supporting Price Forecasting, Drivers, Substitution, Risk, and BOM."@en ;
+                                             rdfs:label "Apollo Procurement Ontology"@en .
+
+###Version dated 22-Dec-2025 - Started version control
+###Version dated 23-Dec-2025 - Added ApprovedSupplierAuthorization section; Added basedOnApproval relation to SupplyAgreement
+###Version dated 24-Dec-2025 - Added ContextualEntityOccurrence class; hasUnresolvedEntity, hasRecognizedEntity;
+###Version dated 24-Dec-2025 - Added ContractedPrice class; added applicableToPlant and hasContractedPrice to SupplyAgreement
+###Version dated 24-Dec-2025 - Added hasProcuredQuantity
+
+#################################################################
+#    Object property (Time Validity / Temporal Extent - Begin)
+#################################################################
+
+:hasTemporalExtent rdf:type owl:ObjectProperty ;
+    rdfs:domain [ rdf:type owl:Class ;
+                         owl:unionOf ( :PriceObservation :SupplyAgreement :BillOfMaterials :QualitySpecification :Assertion :ApprovedSupplierAuthorization :Quotation :MarketEvent :ProcurementSummary) ] ;
+    rdfs:range gist:TemporalExtent ;
+    rdfs:label "has temporal extent"@en ;
+    rdfs:comment "Associates an entity with the time period during which it is valid, applicable, or relevant. Used for prices, contracts, BOMs, quality specifications, assertions, forecasts and assessments."@en .
+
+
+#################################################################
+#    Object property (Time Validity / Temporal Extent- End)
+#################################################################
+
+
+#################################################################
+#    Data property (Time Validity / Temporal Extent- Begin)
+#################################################################
+
+gist:startDateTime rdf:type owl:DatatypeProperty ;
+    rdfs:domain gist:TemporalExtent ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "start date and time"@en .
+
+gist:endDateTime rdf:type owl:DatatypeProperty ;
+    rdfs:domain gist:TemporalExtent ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "end date and time"@en .
+
+
+#################################################################
+#    Data property (Time Validity / Temporal Extent- End)
+#################################################################
+
+#################################################################
+# Canonical magnitude & Location property (consolidated) - Begin
+#################################################################
+:hasMagnitude rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf gist:hasMagnitude ;
+    rdfs:label "has magnitude"@en ;
+    rdfs:comment "Canonical link from an entity to a gist:Magnitude (value+unit). Consolidated to avoid multiple scattered declarations."@en ;
+    rdfs:domain [ rdf:type owl:Class ;
+                  owl:unionOf ( :BillOfMaterialsLine :PriceObservation :QCMeasurement :MarketSignal :InventorySnapshot :CostEstimateForEachCostRuleTemplateApplicableToAQuotation :OverallCostEstimateForQuotation) ] ;
+    rdfs:range gist:Magnitude .
+
+
+:hasphysicallocation rdf:type owl:ObjectProperty ;
+                  rdfs:domain  [ rdf:type owl:Class ;
+				  owl:unionOf ( :OwnManufacturingPlant :SupplierManufacturingPlant :Company :NearestPort)] ;
+                  rdfs:range gist:GeoLocation ;
+                  rdfs:label "plant or company is locatd at"@en .
+
+:hasSourceDocument rdf:type owl:ObjectProperty ;
+     rdfs:domain  [ rdf:type owl:Class ;
+				  owl:unionOf ( :Quotation :PotentialSupplier :UnresolvedEntity)] ;
+    rdfs:range gist:Information ;
+    rdfs:label "has source document"@en ;
+    rdfs:comment "Links a quotation to the email, PDF, or document in which the quotation was received."@en .
+
+
+
+
+#################################################################
+# Canonical magnitude & Location property (consolidated) - End
+#################################################################
+
+
+#################################################################
+#    Classes (Unresolved Entity & ContextualEntityOccurrence - Begin)
+#################################################################
+
+:UnresolvedEntity rdf:type owl:Class ;
+    rdfs:subClassOf gist:Information ;
+    rdfs:label "Unresolved Entity"@en ;
+    rdfs:comment "A temporary placeholder for an entity mentioned in text that cannot yet be confidently resolved to a canonical knowledge graph entity."@en .
+
+:ContextualEntityOccurrence rdf:type owl:Class ;
+    rdfs:subClassOf gist:Event ;
+    rdfs:label "Contextual Entity Occurrence"@en ;
+    rdfs:comment "An extraction event representing the co-occurrence of recognized and unresolved entities within the same textual or semantic context during document ingestion."@en .
+
+
+
+#################################################################
+#    Classes (Unresolved Entity & ContextualEntityOccurrence - End)
+#################################################################
+
+#################################################################
+#    Object Property (Unresolved Entity - Begin)
+#################################################################
+
+
+:hasUnresolvedEntity rdf:type owl:ObjectProperty ;
+    rdfs:domain :ContextualEntityOccurrence ;
+    rdfs:range :UnresolvedEntity ;
+    rdfs:label "has unresolved entity"@en ;
+    rdfs:comment "Links a contextual occurrence to an entity that could not be resolved to a known concept at ingestion time."@en .
+
+:hasRecognizedEntity rdf:type owl:ObjectProperty ;
+    rdfs:domain :ContextualEntityOccurrence ;
+    rdfs:range owl:Thing ;
+    rdfs:label "has recognized entity"@en ;
+    rdfs:comment "Links a contextual occurrence to an entity that was successfully recognized and resolved to a known concept in the knowledge graph."@en .
+
+:entityRole rdf:type owl:ObjectProperty ;
+    rdfs:domain :ContextualEntityOccurrence ;
+    rdfs:range gist:Category ;
+    rdfs:label "entity role in context"@en ;
+    rdfs:comment "Indicates the semantic role an entity plays in the given context, such as supplier, material, plant, location, or event."@en .
+
+
+
+#################################################################
+#    Object Property (Unresolved Entity - End)
+#################################################################
+
+
+
+#################################################################
+#    Data Property (Evidence Snippet - Begin)
+#################################################################
+
+:snippetEvidence rdf:type owl:DatatypeProperty ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string ;
+    rdfs:label "Snippet Evidence"@en ;
+    rdfs:comment "The exact text segment extracted from the source document that supports this fact/observation. Used for Grounding and RAG citations."@en .
+
+
+
+#################################################################
+#    Data Property (Evidence Snippet - End)
+#################################################################
+
+
+#################################################################
+# Class - Confidence Level - Begin
+#################################################################
+
+:ConfidenceLevel rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Confidence Level"@en ;
+    rdfs:comment "A qualitative classification indicating the reliability of an assessment or conclusion based on data completeness, source credibility, and recency."@en .
+
+
+#################################################################
+# ConfidenceLevel  — instances / values - Begin
+#################################################################
+
+:HighConfidence rdf:type :ConfidenceLevel ;
+    rdfs:label "High Confidence"@en ;
+    rdfs:comment "Assessment is based on recent, complete, and reliable data from trusted sources."@en .
+
+:MediumConfidence rdf:type :ConfidenceLevel ;
+    rdfs:label "Medium Confidence"@en ;
+    rdfs:comment "Assessment is based on partially complete or moderately reliable data, or includes reasonable assumptions."@en .
+
+:LowConfidence rdf:type :ConfidenceLevel ;
+    rdfs:label "Low Confidence"@en ;
+    rdfs:comment "Assessment is based on limited, outdated, or uncertain data and should be interpreted cautiously."@en .
+
+#################################################################
+# ConfidenceLevel  — instances / values - End
+#################################################################
+
+#################################################################
+# Class - Confidence Level - End
+#################################################################
+
+#################################################################
+#    Classes (Fondational Entities that are associated with multiple entities like Quoation, SupplyAgreement, Contract etc - End)
+#################################################################
+
+
+:ShipmentMode rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Shipment Mode"@en ;
+    rdfs:comment "Mode of transportation such as sea freight, air freight, road, or rail."@en .
+
+#################################################################
+# ShipmentMode   — instances / values - Begin
+#################################################################
+
+:SeaFreight rdf:type :ShipmentMode ;
+    rdfs:label "Sea Freight"@en ;
+    rdfs:comment "Transportation of goods by ocean-going vessels between seaports. Typically lowest cost per unit for bulk and containerized cargo, with longer transit times."@en .
+
+:AirFreight rdf:type :ShipmentMode ;
+    rdfs:label "Air Freight"@en ;
+    rdfs:comment "Transportation of goods by aircraft between airports. Highest cost per unit, used for urgent, high-value, or time-sensitive shipments."@en .
+
+:RoadTransport rdf:type :ShipmentMode ;
+    rdfs:label "Road Transport"@en ;
+    rdfs:comment "Transportation of goods by trucks over road networks. Common for domestic or regional movements and last-mile delivery."@en .
+
+:RailTransport rdf:type :ShipmentMode ;
+    rdfs:label "Rail Transport"@en ;
+    rdfs:comment "Transportation of goods by rail. Cost-effective for long-distance inland movement of bulk or containerized cargo."@en .
+
+:InlandWaterway rdf:type :ShipmentMode ;
+    rdfs:label "Inland Waterway Transport"@en ;
+    rdfs:comment "Transportation of goods via rivers, canals, or inland waterways. Used where navigable waterways exist, often lower cost but slower."@en .
+
+:MultimodalTransport rdf:type :ShipmentMode ;
+    rdfs:label "Multimodal Transport"@en ;
+    rdfs:comment "Transportation using two or more shipment modes under a single logistics plan, such as sea plus road or rail plus road."@en .
+
+
+#################################################################
+# ShipmentMode   — instances / values - End
+#################################################################
+
+
+:GeopoliticalRegion rdf:type owl:Class ;
+    rdfs:subClassOf gist:GeoRegion ;
+    rdfs:label "Geopolitical Region"@en ;
+    rdfs:comment "A country, trade zone, or geopolitical region relevant for logistics, trade, or regulation."@en .
+
+:TradeAgreement rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Trade Agreement"@en ;
+    rdfs:comment "A bilateral or multilateral trade agreement that influences import duties or tariffs."@en .
+
+
+:NearestPort rdf:type owl:Class ;
+    rdfs:subClassOf gist:GeoLocation ;
+    rdfs:label "Nearest Port"@en ;
+    rdfs:comment "The port that is close by and is usually used by SupplierManufacturingPlant to ship goods from or by OwnManufacturingPlant to receive goods."@en .
+
+
+
+#################################################################
+#    Classes (Fondational Entities that are associated with multiple entities like Quoation, SupplyAgreement, Contract etc - End)
+#################################################################
+
+
+#################################################################
+#    Classes (Material Related - Begin)
+#################################################################
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterial
+### The node that holds everything of a specific Material Required for Production together
+:MaterialRequiredForProduction rdf:type owl:Class ;
+    rdfs:subClassOf gist:CatalogItem ;
+	rdfs:label "Material Required For Production"@en ;
+    rdfs:comment "Canonical procurement material used for sourcing, pricing, quality, and risk analysis."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterialID
+:ERPMaterialRequiredForProductionID rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "ERP ID of Material Required For Production"@en ;
+    rdfs:comment "The ID used in the buyer's internal ERP (e.g., SAP Material Master)."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterial
+### The Tradable Item (What is actually bought)
+:SupplierProduct rdf:type owl:Class ;
+    rdfs:subClassOf gist:CatalogItem ;
+    rdfs:label "Supplier Product (Trade Item)"@en ;
+    rdfs:comment "The specific trade item sold by a supplier (e.g., 'Dow Caustic Grade A')."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterial
+### The Abstract Material (Chemistry/Category)
+:ERPMaterialRequiredForProductionDesc rdf:type owl:Class ;
+    rdfs:subClassOf gist:PhysicalSubstance ;
+	rdfs:label "ERP Desc of Material Required for Production"@en ;
+    rdfs:comment "The generic class defined by common properties (e.g., 'Caustic Soda 50%' or '5 Farad Capacitor')."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterial
+### The node that holds everything of a specific RMofRM together
+:RawMaterialofMaterialRequiredForProduction rdf:type owl:Class ;
+    rdfs:subClassOf gist:CatalogItem ;
+	rdfs:label "Raw Material of Material Required For Production"@en ;
+    rdfs:comment "This is the upstream input (feedstock) used by the supplier to manufacture the Material Required For Production."@en .
+
+
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterialID
+:RawMaterialofMaterialRequiredForProductionID rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "ID for Raw Material of the upstream feedstock"@en ;
+    rdfs:comment "This is the internal id for the upstream input (feedstock) used by the supplier to manufacture the Raw Material needed for production.This is given by user or updated by Apollo."@en .
+
+
+###  http://www.apollo-procurement.org/ontology#RawMaterialOfRawMaterial
+:RawMaterialofMaterialRequiredForProductionDesc rdf:type owl:Class ;
+                          rdfs:subClassOf gist:PhysicalSubstance ;
+                          rdfs:comment "Desc for Raw Material of the upstream feedstock."@en ;
+                          rdfs:label "Common name for Raw Material of Material Required For Production"@en .
+
+###  http://www.apollo-procurement.org/ontology#MaterialGroup
+:MaterialGroupbyChemistry rdf:type owl:Class ;
+               rdfs:subClassOf gist:Category ;
+               rdfs:label "Material Group by Chemistry"@en ;
+               rdfs:comment "A controlled category grouping materials based on their chemical structure or functional group, used for substitution analysis, risk assessment, and market intelligence."@en .
+
+
+#################################################################
+# MaterialGroupbyChemistry   — instances / values - Begin
+#################################################################
+
+
+:Alcohol rdf:type :MaterialGroupbyChemistry ;
+    rdfs:label "Alcohol"@en ;
+    rdfs:comment "Organic compounds characterized by the presence of one or more hydroxyl (-OH) groups."@en .
+
+:Ketone rdf:type :MaterialGroupbyChemistry ;
+    rdfs:label "Ketone"@en ;
+    rdfs:comment "Organic compounds containing a carbonyl group bonded to two carbon atoms."@en .
+
+:Surfactant rdf:type :MaterialGroupbyChemistry ;
+    rdfs:label "Surfactant"@en ;
+    rdfs:comment "Compounds that reduce surface or interfacial tension, commonly used in detergents, emulsifiers, and cleaners."@en .
+
+#################################################################
+# MaterialGroupbyChemistry   — instances / values - End
+#################################################################
+
+
+###  http://www.apollo-procurement.org/ontology#EndUseGroup
+:MaterialGroupbyEndUse rdf:type owl:Class ;
+             rdfs:subClassOf gist:Category ;
+             rdfs:label "Material Group by End Use"@en ;
+			 rdfs:comment "A controlled category grouping materials based on their industrial or functional application, independent of chemical structure. (e.g., Solvent, Adhesive)."@en .
+             
+			 
+			 
+#################################################################
+# MaterialGroupbyEndUse   — instances / values - Begin
+#################################################################
+
+
+:Solvent rdf:type :MaterialGroupbyEndUse ;
+    rdfs:label "Solvent"@en ;
+    rdfs:comment "Materials primarily used to dissolve or disperse other substances in formulations or processes."@en .
+
+:Adhesive rdf:type :MaterialGroupbyEndUse ;
+    rdfs:label "Adhesive"@en ;
+    rdfs:comment "Materials used to bond surfaces together."@en .
+
+:Emulsifier rdf:type :MaterialGroupbyEndUse ;
+    rdfs:label "Emulsifier"@en ;
+    rdfs:comment "Materials used to stabilize mixtures of immiscible liquids."@en .
+
+#################################################################
+# MaterialGroupbyEndUse   — instances / values - End
+#################################################################
+
+
+###  http://www.apollo-procurement.org/ontology#BillOfMaterials
+:BillOfMaterials rdf:type owl:Class ;
+                 rdfs:subClassOf gist:Collection ; 
+                 rdfs:comment "A logical collection representing a specific bill of materials (upstream feedstock RawMaterialofMaterialRequiredForProduction) definition for a product. A Bill of Materials groups multiple BillOfMaterialsLine individuals, each of which specifies one input material and its required quantity. The Bill of Materials itself does not carry quantity information."@en ;
+                 rdfs:label "Bill of Materials"@en .
+
+:BillOfMaterialsLine rdf:type owl:Class ;
+                 rdfs:subClassOf gist:Relation ; 
+                 rdfs:comment "An n-ary relationship representing one component entry in a bill of materials. A BillOfMaterialsLine specifies the consumption of a particular RawMaterialofMaterialRequiredForProduction, including the required quantity and unit of measure, to produce a specific finished good. Quantity and other contextual attributes apply at the level of the BillOfMaterialsLine."@en ;
+                 rdfs:label "Bill of Materials Line"@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#CASNumber
+:CASNumber rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "CAS Registry Number"@en ;
+    rdfs:comment "Unique numerical identifier assigned by the Chemical Abstracts Service."@en .
+
+
+###  http://www.apollo-procurement.org/ontology#CASNumber
+:HSNCode rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "HSN Number"@en ;
+    rdfs:comment "Harmonized System of Nomenclature code, is a multi-digit numerical system developed by the World Customs Organization (WCO) "@en .
+
+#################################################################
+#    Classes (Material Related - End)
+#################################################################
+
+
+
+#################################################################
+#    Object Properties - Material Related - Start
+#################################################################
+
+
+###  http://www.apollo-procurement.org/ontology#hasBillOfMaterials
+:hasBillOfMaterials rdf:type owl:ObjectProperty ;
+                    rdfs:domain :MaterialRequiredForProduction ;
+                    rdfs:range :BillOfMaterials ;
+                    rdfs:label "has Bill of Materials"@en ;
+					rdfs:comment "Associates a finished good with a specific bill of materials definition that describes how the item is manufactured. The Bill of Materials groups one or more BillOfMaterialsLine individuals and does not itself specify component quantities."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#hasBillOfMaterialsLine
+:hasBillOfMaterialsLine rdf:type owl:ObjectProperty ;
+                    rdfs:domain :BillOfMaterials ;
+                    rdfs:range :BillOfMaterialsLine ;
+                    rdfs:label "has Bill of Materials Line" ;
+					rdfs:comment "Links a Bill of Materials to its constituent BillOfMaterialsLine individuals. Each BillOfMaterialsLine represents one RawMaterialofMaterialRequiredForProduction entry, specifying an input material and the quantity required to produce the associated MaterialRequiredForProduction."@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#usesInputMaterial
+:usesInputMaterial rdf:type owl:ObjectProperty ;
+                   rdfs:domain :BillOfMaterialsLine ;
+                   rdfs:range :RawMaterialofMaterialRequiredForProduction ;
+                   rdfs:label "uses Input Material"@en .
+
+###  http://www.apollo-procurement.org/ontology#producesItem
+:producesItem rdf:type owl:ObjectProperty ;
+                   rdfs:domain :BillOfMaterialsLine ;
+                   rdfs:range :MaterialRequiredForProduction ;
+                   rdfs:label "produces Output Material"@en .
+
+###    Magnitude for Bill of Material Line is  defined under :hasMagnitude right at the beginning
+
+###    Bill of Material Valid from and Valid to dates are defined under :hasTemporalExtent right at the beginning
+
+###  http://www.apollo-procurement.org/ontology#hasBillOfMaterials
+:hasHSNCode rdf:type owl:ObjectProperty ;
+                   rdfs:domain :MaterialRequiredForProduction ;
+                   rdfs:range :HSNCode ;
+                   rdfs:label "has a HSN Code"@en .
+
+
+:isBrandedEquivalentFromSupplier rdf:type owl:ObjectProperty ;
+				   rdfs:domain :SupplierProduct ;
+				   rdfs:range :MaterialRequiredForProduction ;
+				   rdfs:label "supplier's branded equivalent" ;
+				   rdfs:comment "Suppliers' catalog item that is their branded equivalent of the MaterialRequiredForProduction."@en .				
+
+###  http://www.apollo-procurement.org/ontology#belongsToGroup
+:belongsToChemistryGroup rdf:type owl:ObjectProperty ;
+					rdfs:domain :MaterialRequiredForProduction ;
+					rdfs:range :MaterialGroupbyChemistry ;
+					rdfs:label "belongs To Chemistry Group"@en .
+
+
+:belongsToEndUseGroup rdf:type owl:ObjectProperty ;
+					rdfs:domain :MaterialRequiredForProduction ;
+					rdfs:range :MaterialGroupbyEndUse ;
+					rdfs:label "belongs to end use group"@en ;
+					rdfs:comment "Indicates the primary industrial or functional application of the material."@en .
+
+###  http://www.apollo-procurement.org/ontology#belongsToGroup
+:hasCASNumber rdf:type owl:ObjectProperty ;
+				rdfs:domain :MaterialRequiredForProduction ;
+				rdfs:range :CASNumber ;
+				rdfs:label "has a CAS Number"@en .
+
+
+###  http://www.apollo-procurement.org/ontology#hasERPMaterialID
+:hasERPMaterialID rdf:type owl:ObjectProperty ;
+                rdfs:domain :MaterialRequiredForProduction ;
+                rdfs:range :ERPMaterialRequiredForProductionID ;
+                rdfs:label "has a Material ID from Material Master in ERP"@en .
+
+
+
+###  http://www.apollo-procurement.org/ontology#belongsToGroup
+:belongsToEndUseGroup rdf:type owl:ObjectProperty ;
+                rdfs:domain :MaterialRequiredForProduction ;
+                rdfs:range :MaterialGroupbyEndUse ;
+                rdfs:label "belongs To End use Group"@en .
+
+###  http://www.apollo-procurement.org/ontology#hasChemicalIdentity
+:hasRawMaterialDesc rdf:type owl:ObjectProperty ;
+                     rdfs:domain :MaterialRequiredForProduction ;
+                     rdfs:range :ERPMaterialRequiredForProductionDesc ;
+                     rdfs:label "has Chemical Description from ERP system"@en .
+
+###  http://www.apollo-procurement.org/ontology#hasChemicalIdentity
+:hasRMofRMDesc rdf:type owl:ObjectProperty ;
+                     rdfs:domain :RawMaterialofMaterialRequiredForProduction ;
+                     rdfs:range :RawMaterialofMaterialRequiredForProductionDesc ;
+                     rdfs:label "has Desc of Raw Material of Material Required For Production"@en .
+
+
+
+#################################################################
+#    Object Properties - Material Related - End
+#################################################################
+#################################################################
+#    Data Properties - Material Related - Begin
+#################################################################
+
+
+
+
+#################################################################
+#    Data Properties - Material Related - End
+#################################################################
+
+#################################################################
+#    Classes (Company & Supplier Related - Begin)
+#################################################################
+
+### The node that holds everything of a specific company together
+###  http://www.apollo-procurement.org/ontology#Company
+:Company rdf:type owl:Class ;
+         rdfs:subClassOf gist:Organization ;
+         rdfs:comment "A commercial business entity. Can act as both supplier and customer."@en ;
+         rdfs:label "Company"@en .
+
+###  http://www.apollo-procurement.org/ontology#CASNumber
+:DUNSNumber rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "Data Universal Numbering System"@en ;
+    rdfs:comment "nine-digit identifier for businesses, issued by Dun & Bradstreet (D&B)."@en .
+
+
+:PotentialSupplier rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Information ;
+				  rdfs:label "Potential Supplier"@en ;
+				  rdfs:comment "An potential supplier for a MaterialRequiredForProduction, who is not currently approved or known."@en .
+
+
+
+#################################################################
+#    Classes (Company & Supplier Related - End)
+#################################################################
+
+
+
+
+#################################################################
+#    Object Properties  (Company & Supplier Related - Begin)
+#################################################################
+
+
+###  for Location of company - see hasPhysicalLocation object property above.
+
+
+###  http://www.apollo-procurement.org/ontology#hasCustomerParty
+:hasDUNSNumber rdf:type owl:ObjectProperty ;
+                  rdfs:domain :Company ;
+                  rdfs:range :DUNSNumber ;
+                  rdfs:label "Company has DUNS Number"@en .
+
+
+
+:isASupplierOf rdf:type owl:ObjectProperty ;
+                  rdfs:domain :PotentialSupplier ;
+                  rdfs:range :MaterialRequiredForProduction ;
+                  rdfs:label "Is a supplier of MaterialRequiredForProduction. "@en .
+
+###Source Document of PotentialSupplier is linked above in hasSourceDocument in foundational section above.
+
+#################################################################
+#    Object Properties  (Company & Supplier Related - End)
+#################################################################
+
+
+
+
+#################################################################
+#    Data Properties - Company & Supplier related - Begin
+#################################################################
+
+
+
+
+#################################################################
+#    Data Properties - Company & Supplier related - End
+#################################################################
+
+
+
+#################################################################
+#    Classes (Manufacturing Plant - Begin)
+#################################################################
+### The node that holds everything of a specific manufacturing plant together
+:OwnManufacturingPlant rdf:type owl:Class ;
+    rdfs:subClassOf gist:Organization ;
+    rdfs:label "Own Manufacturing Plant"@en ;
+    rdfs:comment "The operational unit responsible for production. It has capacity & 'occupies' a Geographic Location. This is from Plant Mastr in ERP"@en .
+
+
+:OwnManufacturingPlantID rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "Own Manufacturing Plant"@en ;
+    rdfs:comment "The operational unit responsible for production. It 'has' a gist:Location. This is from Plant Mastr in ERP"@en .
+
+
+
+### The node that holds everything of a specific supplier manufacturing plant together
+:SupplierManufacturingPlant rdf:type owl:Class ;
+    rdfs:subClassOf gist:Organization ;
+    rdfs:label "Supplier Manufacturing Plant"@en ;
+    rdfs:comment "The operational unit responsible for production at the supplier end. It has capacity & 'occupies' a Geographic Location. This is from intelligence gathered from manual input / market research reports / emails or meeting minutes"@en .
+
+
+:SupplierManufacturingPlantID rdf:type owl:Class ;
+    rdfs:subClassOf gist:ID ;
+    rdfs:label "Supplier Manufacturing Plant"@en ;
+    rdfs:comment "The id of the operational unit responsible for production at supplier end."@en .
+
+
+
+#################################################################
+#    Classes (Manufacturing Plant - End)
+#################################################################
+
+
+#################################################################
+#    Object Properties  (Manufacturing Plant - Begin)
+#################################################################
+### Capacity as a Magnitude
+:nameplateCapacity rdf:type owl:ObjectProperty ;
+    rdfs:domain :SupplierManufacturingPlant ;
+    rdfs:range gist:Magnitude ;
+    rdfs:label "Nameplate Capacity"@en ;
+    rdfs:comment "The maximum production output (Quantity + Unit) per time period."@en .
+
+###  http://www.apollo-procurement.org/ontology#hasCustomerParty
+
+
+###  http://www.apollo-procurement.org/ontology#ownsPlant
+:ownsPlant rdf:type owl:ObjectProperty ;
+           rdfs:domain :Company ;
+		   rdfs:range  [ rdf:type owl:Class ;
+           owl:unionOf (:OwnManufacturingPlant :SupplierManufacturingPlant) ] ;
+           rdfs:label "owns Plant"@en .
+
+
+:hasNearestPort rdf:type owl:ObjectProperty ;
+		   rdfs:domain  [ rdf:type owl:Class ;
+           owl:unionOf (:OwnManufacturingPlant :SupplierManufacturingPlant) ] ;        
+		   rdfs:ramge :NearestPort ;
+		   rdfs:label "has nearest port"@en .
+
+
+
+#################################################################
+#    Object Properties  (Manufacturing Plant - End)
+#################################################################
+
+
+
+#################################################################
+#    Data Properties - Manufacturing Plant - Begin
+#################################################################
+
+
+
+
+
+
+#################################################################
+#    Data Properties - Manufacturing Plant - End
+#################################################################
+
+
+#################################################################
+#    Classes (Approved Supplier Authorization) - Begin
+#################################################################
+#################################################################
+# Approved Supplier Authorization
+#################################################################
+
+:ApprovedSupplierAuthorization rdf:type owl:Class ;
+    rdfs:subClassOf gist:Agreement ;
+    rdfs:label "Approved Supplier Authorization"@en ;
+    rdfs:comment "A formal, time-bound authorization indicating that a supplier is approved to supply a specific material to a specific manufacturing plant. Approval defines eligibility, not commercial commitment."@en .
+
+
+
+
+#################################################################
+#    Classes (Approved Supplier Authorization) - End
+#################################################################
+
+
+#################################################################
+#    Object Properties (Approved Supplier Authorization) - Begin
+#################################################################
+
+:approvedSupplier rdf:type owl:ObjectProperty ;
+    rdfs:domain :ApprovedSupplierAuthorization ;
+    rdfs:range :Company ;
+    rdfs:label "approved supplier"@en ;
+    rdfs:comment "The supplier organization that has been approved."@en .
+
+:approvedMaterial rdf:type owl:ObjectProperty ;
+    rdfs:domain :ApprovedSupplierAuthorization ;
+    rdfs:range :MaterialRequiredForProduction ;
+    rdfs:label "approved material"@en ;
+    rdfs:comment "The material the supplier is approved to supply."@en .
+
+:approvedForPlant rdf:type owl:ObjectProperty ;
+    rdfs:domain :ApprovedSupplierAuthorization ;
+    rdfs:range :OwnManufacturingPlant ;
+    rdfs:label "approved for plant"@en ;
+    rdfs:comment "The manufacturing plant for which the approval is valid."@en .
+
+
+
+
+#################################################################
+#    Object Properties (Approved Supplier Authorization) - End
+#################################################################
+
+
+#################################################################
+#    Data Properties (Approved Supplier Authorization) - Begin
+#################################################################
+
+
+#################################################################
+#    Data Properties (Approved Supplier Authorization) - End
+#################################################################
+
+
+#################################################################
+#  Classes Incoterms, CostComponent, CostEstimate - Begin
+#################################################################
+
+:Incoterm rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Incoterm (Incoterms® 2020)"@en ;
+    rdfs:comment "International Commercial Terms (Incoterms® 2020) published by the ICC, defining responsibilities of buyer and seller for delivery, risk, and cost allocation in international trade."@en .
+
+
+
+####******************************************************************************
+# Incoterms® 2020 — instances / values with explicit responsibilities - Begin
+###******************************************************************************
+
+:EXW rdf:type :Incoterm ;
+    rdfs:label "EXW (Ex Works) — Incoterms® 2020"@en ;
+    rdfs:comment "Seller makes goods available at own premises. Buyer bears all costs and risks from that point onward."@en ;
+    :buyerBearsCost :ExportPackaging, :ExportClearance, :InlandTransport, :OceanFreight, :AirFreight, :Insurance, :ImportClearance, :ImportDuty, :Unloading .
+
+:FOB rdf:type :Incoterm ;
+    rdfs:label "FOB (Free On Board) — Incoterms® 2020"@en ;
+    rdfs:comment "Seller delivers goods on board the vessel at the port of shipment. Buyer bears costs and risks from that point onward."@en ;
+    :sellerBearsCost :ExportPackaging, :ExportClearance, :InlandTransport ;
+    :buyerBearsCost  :OceanFreight, :Insurance, :ImportClearance, :ImportDuty, :Unloading .
+	
+:CIF rdf:type :Incoterm ;
+    rdfs:label "CIF (Cost, Insurance and Freight) — Incoterms® 2020"@en ;
+    rdfs:comment "Seller pays cost, insurance, and freight to the port of destination. Buyer bears risks from shipment and import-side costs."@en ;
+    :sellerBearsCost :ExportPackaging, :ExportClearance, :InlandTransport, :OceanFreight, :Insurance ;
+    :buyerBearsCost  :ImportClearance, :ImportDuty, :Unloading .
+
+:DAP rdf:type :Incoterm ;
+    rdfs:label "DAP (Delivered At Place) — Incoterms® 2020"@en ;
+    rdfs:comment "Seller delivers goods ready for unloading at the named destination. Buyer handles import clearance and duties."@en ;
+    :sellerBearsCost :ExportPackaging, :ExportClearance, :InlandTransport, :OceanFreight, :AirFreight, :Insurance ;
+    :buyerBearsCost  :ImportClearance, :ImportDuty, :Unloading .
+
+:DDP rdf:type :Incoterm ;
+    rdfs:label "DDP (Delivered Duty Paid) — Incoterms® 2020"@en ;
+    rdfs:comment "Seller bears all costs and risks, including import duties and taxes, delivering goods to the named place."@en ;
+    :sellerBearsCost :ExportPackaging, :ExportClearance, :InlandTransport, :OceanFreight, :AirFreight, :Insurance, :ImportClearance, :ImportDuty ;
+    :buyerBearsCost  :Unloading .
+
+###******************************************************************************
+# Incoterms® 2020 — instances / values with explicit responsibilities - End
+###******************************************************************************
+
+:ResponsibilityBoundary rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Responsibility Boundary"@en .
+
+###******************************************************************************
+# ResponsibilityBoundary — instances / values - Begin
+###******************************************************************************
+
+:ExportPort rdf:type :ResponsibilityBoundary ;
+    rdfs:label "Export Port"@en .
+
+:ImportPort rdf:type :ResponsibilityBoundary ;
+    rdfs:label "Import Port"@en .
+
+:NamedPlace rdf:type :ResponsibilityBoundary ;
+    rdfs:label "Named Place"@en .
+
+###******************************************************************************
+# ResponsibilityBoundary — instances / values - End
+###******************************************************************************
+
+
+:CostComponent rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Cost Component"@en ;
+    rdfs:comment "A distinct cost element incurred in supplying goods from seller to buyer, such as freight, insurance, duties, or inland transport. Used to explicitly allocate cost responsibility under Incoterms."@en .
+
+###******************************************************************************
+# CostComponent Instances / values - Begin
+###******************************************************************************
+
+:ExportPackaging rdf:type :CostComponent ;
+    rdfs:label "Export Packaging"@en ;
+    rdfs:comment "Cost of packaging goods suitable for export, including materials and labor."@en .
+
+:ExportClearance rdf:type :CostComponent ;
+    rdfs:label "Export Clearance"@en ;
+    rdfs:comment "Cost of export customs formalities, documentation, and associated fees in the country of export."@en .
+
+:InlandTransport rdf:type :CostComponent ;
+    rdfs:label "Inland Transport"@en ;
+    rdfs:comment "Cost of transporting goods within a country by road, rail, or inland waterways."@en .
+
+:OceanFreight rdf:type :CostComponent ;
+    rdfs:label "Ocean Freight"@en ;
+    rdfs:comment "Cost of transporting goods by sea between ports, excluding insurance and inland transport."@en .
+
+:AirFreight rdf:type :CostComponent ;
+    rdfs:label "Air Freight"@en ;
+    rdfs:comment "Cost of transporting goods by air between airports."@en .
+
+:Insurance rdf:type :CostComponent ;
+    rdfs:label "Cargo Insurance"@en ;
+    rdfs:comment "Cost of insuring goods against loss or damage during transit."@en .
+
+:ImportClearance rdf:type :CostComponent ;
+    rdfs:label "Import Clearance"@en ;
+    rdfs:comment "Cost of import customs formalities, documentation, and associated fees in the country of import."@en .
+
+:ImportDuty rdf:type :CostComponent ;
+    rdfs:label "Import Duty & Taxes"@en ;
+    rdfs:comment "Customs duties, taxes, and levies payable upon import."@en .
+
+:Unloading rdf:type :CostComponent ;
+    rdfs:label "Unloading"@en ;
+    rdfs:comment "Cost of unloading goods at the destination point."@en .
+
+
+###******************************************************************************
+# CostComponent Instances / Values - End
+###******************************************************************************
+
+#################################################################
+# Cost Rule Template (refactored)
+#################################################################
+
+:CostRuleTemplate rdf:type owl:Class ;
+    rdfs:subClassOf gist:Information ;
+    rdfs:label "Cost Rule Template"@en ;
+    rdfs:comment "A reusable rule definition describing how a cost component is calculated and which parameters influence it. CostRuleTemplate represents logic, not instantiated market values."@en .
+
+#################################################################
+# Cost Rule Templates — instances / values - Begin
+#################################################################
+
+:OceanFreightRuleTemplate rdf:type :CostRuleTemplate ;
+    rdfs:label "Ocean Freight Cost Rule Template"@en ;
+    :forCostComponent :OceanFreight ;
+    :requiresParameter :LogisticsRoute ;
+    :requiresParameter :ShipmentMode ;
+    :requiresParameter :Distance .
+
+:InsuranceRuleTemplate rdf:type :CostRuleTemplate ;
+    rdfs:label "Insurance Cost Rule Template"@en ;
+    :forCostComponent :Insurance ;
+    :requiresParameter :InvoiceValue ;
+    :requiresParameter :ShipmentMode .
+
+:ImportDutyRuleTemplate rdf:type :CostRuleTemplate ;
+    rdfs:label "Import Duty Rule Template"@en ;
+    :forCostComponent :ImportDuty ;
+    :requiresParameter :HSNCode ;
+    :requiresParameter :CountryOfOrigin ;
+    :requiresParameter :TradeAgreement .
+
+#################################################################
+# Cost Rule Templates — instances / values - End
+#################################################################
+
+
+
+:CostRuleTemplateParameters rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Cost Rule Template Parameters"@en ;
+    rdfs:comment "A controlled vocabulary of parameters that are used in CostRuleTemplate."@en .
+
+
+
+###:CostRule rdf:type owl:Class ;
+###    rdfs:subClassOf gist:Information ;
+###    rdfs:label "Cost Rule"@en ;
+###    rdfs:comment "Defines the applicability conditions and influencing parameters for a specific cost component, such as route, location, quantity basis, HSN code, or trade agreement."@en .
+###
+
+###:ExportPackagingCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Export Packaging."@en ;
+###                 rdfs:label "Export Packaging Cost Rule"@en .
+###
+###:ExportClearanceCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Export Clearance."@en ;
+###                 rdfs:label "Export Clearance Cost Rule"@en .
+###
+###:InlandTransportCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Inland Transport."@en ;
+###                 rdfs:label "Inland Transport Cost Rule"@en .
+###
+###:OceanFreightCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Ocean Freight."@en ;
+###                 rdfs:label "Ocean Freight Cost Rule"@en .
+###
+###:AirFreightCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Air Freight."@en ;
+###                 rdfs:label "Air Freight Cost Rule"@en .
+###
+###:InsuranceCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Insurance."@en ;
+###                 rdfs:label "Insurance Cost Rule"@en .
+###
+###:ImportClearanceCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Import Clearance."@en ;
+###                 rdfs:label "Import Clearance Cost Rule"@en .
+###
+###:ImportDutyCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Import Duty."@en ;
+###                 rdfs:label "Import Duty Cost Rule"@en .
+###
+###:UnloadingCostRule rdf:type owl:Class ;
+###                 rdfs:subClassOf :CostRule ;
+###                 rdfs:comment "Cost Rules for Unloading."@en ;
+###                 rdfs:label "Unloading Cost Rule"@en .
+###
+
+
+
+#################################################################
+#  Classes Incoterms, CostComponent, CostEstimate - End
+#################################################################
+
+
+#################################################################
+#   Object Properties  Incoterms, CostComponent, CostEstimate - Begin
+#################################################################
+:buyerBearsCost rdf:type owl:ObjectProperty ;
+    rdfs:domain :Incoterm ;
+    rdfs:range :CostComponent ;
+    rdfs:label "buyer bears cost"@en ;
+	rdfs:comment "Indicates a cost component that is the responsibility of the buyer under this Incoterm® 2020."@en .
+
+:sellerBearsCost rdf:type owl:ObjectProperty ;
+    rdfs:domain :Incoterm ;
+    rdfs:range :CostComponent ;
+    rdfs:label "seller bears cost"@en ;
+	rdfs:comment "Indicates a cost component that is the responsibility of the seller under this Incoterm® 2020."@en .
+
+
+:forCostComponent rdf:type owl:ObjectProperty ;
+    rdfs:domain :CostRuleTemplate ;
+    rdfs:range :CostComponent ;
+    rdfs:label "for cost component"@en .
+
+:requiresParameter rdf:type owl:ObjectProperty ;
+    rdfs:domain :CostRuleTemplate ;
+    rdfs:range :CostRuleTemplateParameters ;
+    rdfs:label "requires parameter"@en ;
+    rdfs:comment "Indicates a required input parameter for evaluating this cost rule template, such as distance, quantity, HSN code, shipment mode, or route."@en .
+
+
+:responsibilityEndsAt rdf:type owl:ObjectProperty ;
+    rdfs:domain :Incoterm ;
+    rdfs:range :ResponsibilityBoundary ;
+    rdfs:label "responsibility ends at"@en ;
+    rdfs:comment "Defines the type of location where seller responsibility ends under this Incoterm, such as export port, import port, or named place."@en .
+
+#################################################################
+# responsibilityEndsAt — instances / values - Begin
+#################################################################
+
+:CIF :responsibilityEndsAt :ImportPort .
+:FOB :responsibilityEndsAt :ExportPort .
+:DAP :responsibilityEndsAt :NamedPlace .
+:DDP :responsibilityEndsAt :NamedPlace .
+
+#################################################################
+# responsibilityEndsAt — instances / values - Begin
+#################################################################
+
+
+
+###:appliesToRoute rdf:type owl:ObjectProperty ;
+###    rdfs:domain :CostRule ;
+###    rdfs:range :LogisticsRoute ;
+###    rdfs:label "applies to route"@en .
+###
+###
+###:hasQuantityBasis rdf:type owl:ObjectProperty ;
+###    rdfs:domain :CostRule ;
+###    rdfs:range gist:UnitOfMeasure ;
+###    rdfs:label "has quantity basis"@en ;
+###    rdfs:comment "Indicates whether the cost is calculated per MT, per container, per shipment, or per unit."@en .
+###
+###:appliesAtLocation rdf:type owl:ObjectProperty ;
+###    rdfs:domain :CostRule ;
+###    rdfs:range gist:GeoLocation ;
+###    rdfs:label "applies at location"@en ;
+###    rdfs:comment "Specifies the geographic location where the cost component applies, such as a port, terminal, or factory gate."@en .
+###
+###
+###:appliesToHSNCode rdf:type owl:ObjectProperty ;
+###    rdfs:domain :CostRule ;
+###    rdfs:range :HSNCode ;
+###    rdfs:label "applies to HSN code"@en ;
+###    rdfs:comment "Links a cost rule to the HSN code used for tariff or import duty determination."@en .
+###
+###
+###:appliesUnderTradeAgreement rdf:type owl:ObjectProperty ;
+###    rdfs:domain :CostRule ;
+###    rdfs:range :TradeAgreement ;
+###    rdfs:label "applies under trade agreement"@en .
+###
+
+#################################################################
+#   Object Properties  Incoterms, CostComponent, CostEstimate - End
+#################################################################
+
+#################################################################
+#    Classes (Logistics Route - Begin)
+#################################################################
+
+:LogisticsRoute rdf:type owl:Class ;
+    rdfs:subClassOf gist:Plan ;
+    rdfs:label "Logistics Route"@en ;
+    rdfs:comment "A reusable, non-temporal logistics plan defining the intended transport path between origin and destination. This represents how goods may be shipped, not an actual shipment event."@en .
+
+
+:LogisticsLeg rdf:type owl:Class ;
+    rdfs:subClassOf gist:Plan ;
+    rdfs:label "Logistics Leg"@en ;
+    rdfs:comment "A planned segment of a logistics route between two locations using a single shipment mode."@en .
+
+
+#################################################################
+#    Classes (Logistics Route - End)
+#################################################################
+
+#################################################################
+#   Object Properties  Logistics Route - Begin
+#################################################################
+
+
+:hasLeg rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsRoute ;
+    rdfs:range :LogisticsLeg ;
+    rdfs:label "has logistics leg"@en .
+
+:legOrigin rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsLeg ;
+    rdfs:range gist:GeoLocation ;
+    rdfs:label "leg origin"@en .
+
+:legDestination rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsLeg ;
+    rdfs:range gist:GeoLocation ;
+    rdfs:label "leg destination"@en .
+
+:usesShipmentMode rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsLeg ;
+    rdfs:range :ShipmentMode ;
+    rdfs:label "uses shipment mode"@en .
+
+:hasDistance rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsLeg ;
+    rdfs:range gist:Magnitude ;
+    rdfs:label "has distance"@en .
+
+
+:isAssociatedWithOwnManufacturingPlant rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsRoute ;
+    rdfs:range :OwnManufacturingPlant ;
+    rdfs:label "plant the route serves"@en ;
+    rdfs:comment "Specifies the OwnManufacturingPlant that the route serves."@en .
+
+
+:isAssociatedWithSupplierManufacturingPlant rdf:type owl:ObjectProperty ;
+    rdfs:domain :LogisticsRoute ;
+    rdfs:range :SupplierManufacturingPlant ;
+    rdfs:label "supplier plant the route starts at"@en ;
+    rdfs:comment "Specifies the SupplierManufacturingPlant that the route starts at."@en .
+
+
+#################################################################
+#   Object Properties  Logistics Route - End
+#################################################################
+
+
+
+#################################################################
+#    Classes (Supply Agreement - Begin)
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#SupplyAgreement
+:SupplyAgreement rdf:type owl:Class ;
+                 rdfs:subClassOf gist:Agreement ;
+                 rdfs:label "Supply Agreement"@en .
+
+
+
+
+#################################################################
+#    Classes (Supply Agreement - End)
+#################################################################
+
+#################################################################
+#    Object Properties  (Supply Agreement - Begin)
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#hasSupplierParty
+:hasSupplierParty rdf:type owl:ObjectProperty ;
+                  rdfs:domain :SupplyAgreement ;
+                  rdfs:range :Company ;
+                  rdfs:label "has Supplier Party"@en .
+
+###  http://www.apollo-procurement.org/ontology#coversMaterial
+:coversMaterial rdf:type owl:ObjectProperty ;
+                rdfs:domain :SupplyAgreement ;
+                rdfs:range :MaterialRequiredForProduction ;
+                rdfs:label "covers Material"@en .
+
+###  http://www.apollo-procurement.org/ontology#hasCustomerParty
+:hasCustomerParty rdf:type owl:ObjectProperty ;
+                  rdfs:domain :SupplyAgreement ;
+                  rdfs:range :Company ;
+                  rdfs:label "has Customer Party"@en .
+
+
+:applicableToOwnManufacturingPlant rdf:type owl:ObjectProperty ;
+    rdfs:domain :SupplyAgreement ;
+    rdfs:range :OwnManufacturingPlant ;
+    rdfs:label "applicable to plant"@en ;
+    rdfs:comment "Indicates the manufacturing plant(s) that are intended to receive material under this supply agreement."@en .
+
+
+:isSourcedFromSupplierManufacturingPlant rdf:type owl:ObjectProperty ;
+    rdfs:domain :SupplyAgreement ;
+    rdfs:range :SupplierManufacturingPlant ;
+    rdfs:label "sourced from supplier plant"@en ;
+    rdfs:comment "Indicates the supplier manufacturing plant(s) that are intended to ship the material under this supply agreement."@en .
+
+
+:hasContractedPrice rdf:type owl:ObjectProperty ;
+    rdfs:domain :SupplyAgreement ;
+    rdfs:range :ContractedPrice ;
+    rdfs:label "has contracted price"@en ;
+    rdfs:comment "Links a supply agreement to the price contractually agreed for the material supplied under the agreement."@en .
+
+###ContractedPrice is defined under PriceObservation class
+
+
+:basedOnApproval rdf:type owl:ObjectProperty ;
+    rdfs:domain :SupplyAgreement ;
+    rdfs:range :ApprovedSupplierAuthorization ;
+    rdfs:label "based on approval"@en ;
+    rdfs:comment "Indicates the approved supplier authorization under which this supply agreement is entered into."@en .
+
+
+
+###    Supply Agreement Valid from and Valid to dates are defined under :hasTemporalExtent right at the beginning
+
+
+#################################################################
+#    Object Properties  (Supply Agreement - End)
+#################################################################
+
+
+#################################################################
+#    Data Properties - Supply Agreement related - Begin
+#################################################################
+
+
+
+
+#################################################################
+#    Data Properties - Supply Agreement related - End
+#################################################################
+
+
+
+
+
+
+#################################################################
+#    Classes (Price & Economics) - Begin
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#PriceObservation
+:PriceObservation rdf:type owl:Class ;
+                  rdfs:subClassOf gist:Information ;
+                  rdfs:comment "A data record capturing a specific price point, at a specific time, from a specific source."@en ;
+                  rdfs:label "Price Observation"@en .
+
+###  http://www.apollo-procurement.org/ontology#TransactionPrice
+:TransactionPrice rdf:type owl:Class ;
+                  rdfs:subClassOf :PriceObservation ;
+                  rdfs:comment "An internal, realized price from a PO or Invoice."@en ;
+                  rdfs:label "Transaction Price"@en .
+
+###  http://www.apollo-procurement.org/ontology#BenchmarkPrice
+:BenchmarkPrice rdf:type owl:Class ;
+                rdfs:subClassOf :PriceObservation ;
+                rdfs:comment "An external price assessment from a market report (e.g., Platts)."@en ;
+                rdfs:label "Benchmark Price"@en .
+
+###  http://www.apollo-procurement.org/ontology#ForecastedPrice
+:ForecastedPrice rdf:type owl:Class ;
+                 rdfs:subClassOf :PriceObservation ;
+                 rdfs:comment "A predicted future price."@en ;
+                 rdfs:label "Forecasted Price"@en .
+
+###Pl. also see QuotedPrice under the Quotation class.
+
+###  http://www.apollo-procurement.org/ontology#ContractedPrice
+:ContractedPrice rdf:type owl:Class ;
+				  rdfs:subClassOf :PriceObservation ;
+				  rdfs:label "Contracted Price"@en ;
+				  rdfs:comment "A binding price agreed upon as part of a SupplyAgreement. Represents contractual commercial terms, distinct from quoted, benchmark, forecasted, or transaction prices."@en .
+
+#################################################################
+#    Classes (Price & Economics) - End
+#################################################################
+
+
+
+
+#################################################################
+#    Object Properties - (Price & Economics) - Begin
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#observedFor
+:observedFor rdf:type owl:ObjectProperty ;
+             rdfs:domain :BenchmarkPrice ;
+             rdfs:range [ rdf:type owl:Class ;
+                          owl:unionOf ( :RawMaterialofMaterialRequiredForProduction :MaterialRequiredForProduction ) ] ;
+             rdfs:comment "Links a price observation to the material it describes."@en ;
+             rdfs:label "observed For"@en .
+
+:observedIn rdf:type owl:ObjectProperty ;
+				  rdfs:domain :BenchmarkPrice ;
+				  rdfs:range :InformationObject ;
+				  rdfs:label "observed in"@en .
+###InformationObject is defined later in the script.
+
+###  http://www.apollo-procurement.org/ontology#applicableLocation
+:applicableLocation rdf:type owl:ObjectProperty ;
+                    rdfs:domain :BenchmarkPrice ;
+                    rdfs:range gist:GeoLocation ;
+                    rdfs:comment "The region, country, or plant where this price is valid."@en ;
+                    rdfs:label "has Location of Price Obervation"@en .
+
+###  http://www.apollo-procurement.org/ontology#hasCurrency
+:hasCurrency rdf:type owl:ObjectProperty ;
+             rdfs:domain :PriceObservation ;
+             rdfs:range gist:Currency ;
+             rdfs:label "has Currency of Price Observation"@en .
+
+######  http://www.apollo-procurement.org/ontology#applicableLocation
+:applicablePlant rdf:type owl:ObjectProperty ;
+                    rdfs:domain  [ rdf:type owl:Class ;
+					owl:unionOf ( :Quotation :ContractedPrice)] ;
+                    rdfs:range :OwnManufacturingPlant ;
+                    rdfs:comment "The plant / factory mentioned on the PO or Invoice of the Transaction. "@en ;
+                    rdfs:label "The plant this price is valid for"@en .
+
+:influencedBySupplySignal rdf:type owl:ObjectProperty ;
+			  rdfs:domain :ForecastedPrice ;
+			  rdfs:range :SupplySignal ;
+			  rdfs:label "Supply signal that influences forecast price"@en .
+
+:influencedByDemandSignal rdf:type owl:ObjectProperty ;
+			  rdfs:domain :ForecastedPrice ;
+			  rdfs:range :DemandSignal ;
+			  rdfs:label "Demand signal that influences forecast price"@en .
+
+:forecastedForRegion rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ForecastedPrice ;
+				  rdfs:range gist:GeoLocation ;
+				  rdfs:label "observed market"@en .
+
+:forecastedForMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ForecastedPrice ;
+				  rdfs:range :MaterialRequiredForProduction ;
+				  rdfs:label "MaterialRequiredForProduction forecasted for. "@en .
+
+
+			  
+###    Magnitude for PriceObservation is  defined under :hasMagnitude right at the beginning
+
+###    Price Observation Valid from and Valid to dates are defined under :hasTemporalExtent right at the beginning
+
+### Delete the next 25 odd lines after defining contract, quotaion, forecast, purchase histroy as classes.
+###
+######  http://www.apollo-procurement.org/ontology#hasSupplierParty
+###:hasSupplierParty rdf:type owl:ObjectProperty ;
+###                  rdfs:domain  [ rdf:type owl:Class ;
+###				  owl:unionOf ( :TransactionPrice :ContractedPrice :QuotedPrice)] ;
+###                  rdfs:range :Company ;
+###                  rdfs:label "has Supplier Party"@en .
+###
+#########  http://www.apollo-procurement.org/ontology#hasIncoterm
+###:hasIncoterm rdf:type owl:ObjectProperty ;
+###             rdfs:domain  [ rdf:type owl:Class ;
+###					owl:unionOf ( :TransactionPrice :QuotedPrice :ContractedPrice)] ;
+###             rdfs:range :Incoterm ;
+###             rdfs:label "has Incoterm"@en .
+###
+###
+
+
+#################################################################
+#    Object Properties - (Price & Economics) - End
+#################################################################
+
+
+#################################################################
+#    Classes (Quotation) - Begin
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#Quotation
+:Quotation rdf:type owl:Class ;
+           rdfs:subClassOf gist:Offer ;
+           rdfs:label "Quotation"@en .
+
+
+###  http://www.apollo-procurement.org/ontology#QuotededPrice
+:QuotedPrice rdf:type owl:Class ;
+                 rdfs:subClassOf :PriceObservation ;
+                 rdfs:comment "A price provided by a supplier during a commercial interaction like a quotation or a negotiation."@en ;
+                 rdfs:label "Quoted Price"@en .
+
+
+:OverallCostEstimateForQuotation rdf:type owl:Class ;
+    rdfs:subClassOf gist:Magnitude ;
+    rdfs:label "Over all cost Estimate for the quotation"@en ;
+    rdfs:comment "The total estimated per unit cost value for a quotation, most often representing the effective factory door price per unit."@en .
+
+:CostEstimateForEachCostRuleTemplateApplicableToAQuotation rdf:type owl:Class ;
+    rdfs:subClassOf gist:Magnitude ;
+    rdfs:label "Cost Estimate"@en ;
+    rdfs:comment "An estimated cost value for each appliable cost rule template applicable to the quotation."@en .
+
+:CostComponentsApplicableToAQuotation rdf:type owl:Class ;
+    rdfs:subClassOf gist:Information ;
+    rdfs:label "Cost Components of a Quotation."@en ;
+    rdfs:comment "All the cost components that are applicble to the quotation."@en .
+
+:CostRuleTemplatesApplicableToAQuotation rdf:type owl:Class ;
+    rdfs:subClassOf gist:Information ;
+    rdfs:label "Cost rule templates applicable to a Quotation."@en ;
+    rdfs:comment "All the Cost rules templates applicable to a Quotation."@en .
+
+
+
+#################################################################
+# Quotation Comparison Assessment
+#################################################################
+
+:QuotationComparisonAssessment rdf:type owl:Class ;
+    rdfs:subClassOf gist:Assessment ;
+    rdfs:label "Quotation Comparison Assessment"@en ;
+    rdfs:comment "An assessment comparing multiple supplier quotations for the same material and quantity, resulting in an evaluated effective price, ranking, and recommendation."@en .
+
+
+
+#################################################################
+#    Classes (Quotation) - End
+#################################################################
+
+#################################################################
+#    Object Properties - (Quotation) - Begin
+#################################################################
+
+
+:quotedForMaterial rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :MaterialRequiredForProduction ;
+    rdfs:label "quoted for material"@en .
+
+:quotedQuantity rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range gist:Magnitude ;
+    rdfs:label "quoted quantity"@en .
+
+:hasIncoterm rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :Incoterm ;
+    rdfs:label "has incoterm"@en .
+
+
+:hasShipmentMode rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :ShipmentMode ;
+    rdfs:label "has shipment mode"@en .
+
+
+
+:hasCostComponentsApplicableToAQuotation rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :CostComponentsApplicableToAQuotation ;
+    rdfs:label "quotation has applicable cost components"@en .
+
+
+:hasCostRuleTemplatesApplicableToAQuotation rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :CostRuleTemplatesApplicableToAQuotation ;
+    rdfs:label "cost rules applicable to cost components that are applicable to a quotation "@en .
+
+
+:hasCostEstimateForEachCostRuleTemplateApplicableToAQuotation rdf:type owl:ObjectProperty ;
+    rdfs:domain :CostEstimateForEachCostRuleTemplateApplicableToAQuotation ;
+    rdfs:range :CostRuleTemplatesApplicableToAQuotation ;
+    rdfs:label "cost estimate for each cost rule that is applicable to the cost components that are applicable to a quotation "@en .
+
+
+:deliveryDestination rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range gist:GeoLocation  ;
+    rdfs:label "delivery destination"@en ;
+    rdfs:comment "Destination up to which the supplier is responsible under the quotation (plant, port, or other location)."@en .
+
+:hasLogisticsRoute rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :LogisticsRoute ;
+    rdfs:label "has logistics route"@en .
+
+:hasQuotedPrice rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :QuotedPrice ;
+    rdfs:label "has quoted price"@en .
+
+###The source document of quotation is defined in foundational section at the beginning.
+###Quotation has a time period in which it is valid. This is defined by TemporalExtent, which is defined at the beginningof this document.
+###Also see applicablePlant to se the own factory and quoation link.
+
+:assessesQuotation rdf:type owl:ObjectProperty ;
+    rdfs:domain :QuotationComparisonAssessment ;
+    rdfs:range :Quotation ;
+    rdfs:label "assesses quotation"@en .
+
+:hasOverallCostEstimateForQuotation rdf:type owl:ObjectProperty ;
+    rdfs:domain :Quotation ;
+    rdfs:range :OverallCostEstimateForQuotation ;
+    rdfs:label "has effective factory door price"@en .
+
+
+
+#################################################################
+#    Object Properties - (Quotation) - End
+#################################################################
+
+#################################################################
+#    Data Properties - (Quotation) - Begin
+#################################################################
+
+:quotationDateTime rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :Quotation ;
+				  rdfs:range  xsd:dateTime ;
+				  rdfs:label "Quotation dateTime" ;
+				  rdfs:comment "The date and time at which the Quotation was received from supplier." .
+#################################################################
+#    Data Properties - (Quotation) - End
+#################################################################
+
+
+#################################################################
+#    Classes - (Material Inventory Snapshot) - Begin
+#################################################################
+
+:InventorySnapshot rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Event ;
+				  rdfs:label "Inventory Snapshot"@en ;
+				  rdfs:comment "A point-in-time observation of inventory quantity and type for a specific material at a specific plant. Inventory snapshots represent state, not individual stock movements, and are intended for decision-making and reasoning rather than transactional accounting."@en .
+
+:InventoryType rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Category ;
+				  rdfs:label "Inventory Type"@en ;
+				  rdfs:comment "A categorical classification of inventory based on its status, such as available, obselete, on-hold, quality check pending."@en .
+
+#################################################################
+#    Classes - (Material Inventory Snapshot) - End
+#################################################################
+
+
+#################################################################
+# Object Properties - (Material Inventory Snapshot) - Begin
+#################################################################
+
+:forMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :InventorySnapshot ;
+				  rdfs:range :MaterialRequiredForProduction ;
+				  rdfs:label "for material"@en ;
+				  rdfs:comment "Indicates the material for which the inventory snapshot is recorded."@en .
+
+:atPlant rdf:type owl:ObjectProperty ;
+				  rdfs:domain :InventorySnapshot ;
+				  rdfs:range gist:Organization ;
+				  rdfs:label "at plant"@en ;
+				  rdfs:comment "Indicates the manufacturing plant or warehouse where the inventory is physically located."@en .
+
+:hasInventoryType rdf:type owl:ObjectProperty ;
+				  rdfs:domain :InventorySnapshot ;
+				  rdfs:range :InventoryType ;
+				  rdfs:label "has inventory type"@en ;
+				  rdfs:comment "Specifies the type or status of the inventory (e.g., available, obselete, on-hold)."@en .
+
+###    Magnitude for InventorySnapshot is  defined under :hasMagnitude right at the beginning
+
+#################################################################
+# Object properties - (Material Inventory Snapshot) - End
+#################################################################
+
+#################################################################
+# Data properties - (Material Inventory Snapshot) - Begin
+#################################################################
+
+
+:inventoryDateTime rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :InventorySnapshot ;
+				  rdfs:range  xsd:dateTime ;
+				  rdfs:label "Inventory dateTime" ;
+				  rdfs:comment "The date and time at which the Inventory data was pulled from ERP." .
+
+
+
+#################################################################
+# Data properties - (Material Inventory Snapshot) - End
+#################################################################
+
+
+
+
+
+#################################################################
+# Classes - Summary of Procurement History  - Begin
+#################################################################
+
+
+:ProcurementSummary rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Information ;
+				  rdfs:label "Procurement Summary"@en ;
+				  rdfs:comment "An aggregated and interpreted view of historical procurement transactions, derived from ERP data, and used for analysis and decision-making."@en .
+
+#################################################################
+# Classes - Summary of Procurement History - End
+#################################################################
+
+#################################################################
+# Object Properties - Summary of Procurement History - Begin
+#################################################################
+
+:hasTransactionPrice rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ProcurementSummary ;
+				  rdfs:range :TransactionPrice ;
+				  rdfs:label "Transaction Price"@en ;
+				  rdfs:comment "Indicates the material, plant, supplier, currency, date and price value for which the procurement was done."@en .
+
+:procuredForPlant rdf:type owl:ObjectProperty ;
+                    rdfs:domain :ProcurementSummary ;
+					rdfs:range :OwnManufacturingPlant ;
+                    rdfs:comment "The plant / factory mentioned on the PO or Invoice of the Transaction. "@en ;
+                    rdfs:label "The plant this procurementwas for"@en .
+
+
+:procuredMaterial rdf:type owl:ObjectProperty ;
+                    rdfs:domain :ProcurementSummary ;
+					rdfs:range :MaterialRequiredForProduction ;
+                    rdfs:comment "The raw material mentioned on the PO or Invoice of the Transaction. "@en ;
+                    rdfs:label "The MaterialRequiredForProduction this procurementwas for. "@en .
+
+
+:hasProcuredQuantity rdf:type owl:ObjectProperty ;
+    rdfs:domain :ProcurementSummary ;
+    rdfs:range gist:Magnitude ;
+    rdfs:label "has procured quantity"@en ;
+    rdfs:comment "Indicates the total quantity of material procured within the time period covered by this procurement summary."@en .
+
+
+:underSupplyAgreement rdf:type owl:ObjectProperty ;
+                    rdfs:domain :ProcurementSummary ;
+					rdfs:range :SupplyAgreement ;
+                    rdfs:comment "The applicable supply agreement. "@en ;
+                    rdfs:label "The applicable supply agreement. "@en .
+
+
+
+#################################################################
+# Object properties - Summary of Procurement History - End
+#################################################################
+
+#################################################################
+# Data properties - Summary of Procurement History - Begin
+#################################################################
+
+
+:transactionDateTime rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :ProcurementSummary ;
+				  rdfs:range  xsd:dateTime ;
+				  rdfs:label "Procurement Summary dateTime" ;
+				  rdfs:comment "The date and time at which the Procurement summary data was pulled from ERP." .
+
+
+
+#################################################################
+# Data properties - Summary of Procurement History - End
+#################################################################
+
+
+
+
+
+#################################################################
+#    Classes - (Material Quality Parameters) - Begin
+#################################################################
+###  http://www.apollo-procurement.org/ontology#TensileStrength
+:QualityAspect rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Aspect ;
+				  rdfs:label "Quality Aspect"@en ;
+				  rdfs:comment "A measurable or assessable quality dimension of a material or supplier product, such as purity, pH, viscosity, color, or impurity level."@en .
+
+		  
+:PurityAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality aspect representing purity or assay (e.g., % active, % glycerol)" ;
+				  rdfs:label "Purity"@en .
+
+:ImpurityAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality aspects representing impurities or contaminants (e.g., water, chloride, heavy metals)." ;
+				  rdfs:label "Impurity"@en .
+				  
+:AshAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality aspect representing inorganic residue (ash) (% w/w)" ;
+				  rdfs:label "Ash %"@en .
+				  
+:WaterContentAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality aspect representing water content (% w/w) in" ;
+				  rdfs:label "Water Content"@en .
+				  
+
+:FreezingPointAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality aspect representing freezing point (°C) " ;
+				  rdfs:label "Freezing Point"@en .
+
+
+:HLBValueAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality Aspect representing HLB value (dimensionless) for emulsification/detergency " ;
+				  rdfs:label "HLB Value"@en .
+				  
+:phValueAspect rdf:type owl:Class ;
+                  rdfs:subClassOf :QualityAspect ;
+                  rdfs:comment "Quality Aspect representing ph " ;
+				  rdfs:label "pH Value"@en .
+
+:QualitySpecification rdf:type owl:Class ;
+    rdfs:subClassOf gist:Specification ;
+    rdfs:label "Quality Specification"@en ;
+    rdfs:comment "A formal requirement that defines acceptable limits or conditions for a specific quality aspect of a material or supplier product. A Quality Specification represents what is required, not what was observed."@en .
+
+
+:QCMeasurement rdf:type owl:Class ;
+				   rdfs:subClassOf gist:Event ;
+				   rdfs:label "Quality Control Measurement"@en ;
+				   rdfs:comment "An event in which a quality aspect of a material or supplier product is measured, producing an observed value with a unit of measure.QCMeasurement captures when, where, and on which sample the measurementwas performed."@en .
+
+
+:ResultCategory rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Result Category"@en ;
+    rdfs:comment "A controlled category representing a qualitative outcome of a quality control measurement or evaluation, used when results are not numeric (e.g., pass/fail, acceptable/unacceptable)."@en .
+
+#################################################################
+# ResultCategory — instances / values - Begin
+#################################################################
+
+:Pass rdf:type :ResultCategory ;
+    rdfs:label "Pass"@en ;
+    rdfs:comment "Indicates that the material meets the specified quality requirement or acceptance criterion."@en .
+
+:Fail rdf:type :ResultCategory ;
+    rdfs:label "Fail"@en ;
+    rdfs:comment "Indicates that the material does not meet the specified quality requirement or acceptance criterion."@en .
+
+:NotTested rdf:type :ResultCategory ;
+    rdfs:label "Not Tested"@en ;
+    rdfs:comment "Indicates that the quality test was not performed or data is unavailable."@en .
+
+#################################################################
+# ResultCategory — instances / values - End
+#################################################################
+
+
+
+
+
+:ComparisonOperator rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Comparison Operator"@en ;
+    rdfs:comment "A controlled category representing a logical or mathematical operator used to compare a measured value against a specified criterion."@en .
+
+
+#################################################################
+# ComparisonOperator — instances / values - Begin
+#################################################################
+
+:GreaterThan rdf:type :ComparisonOperator ;
+    rdfs:label "Greater Than (>)"@en ;
+    rdfs:comment "Indicates that the measured value must be strictly greater than the specified threshold."@en .
+
+:GreaterThanOrEqualTo rdf:type :ComparisonOperator ;
+    rdfs:label "Greater Than or Equal To (≥)"@en ;
+    rdfs:comment "Indicates that the measured value must be greater than or equal to the specified threshold."@en .
+
+:LessThan rdf:type :ComparisonOperator ;
+    rdfs:label "Less Than (<)"@en ;
+    rdfs:comment "Indicates that the measured value must be strictly less than the specified threshold."@en .
+
+:BetweenInclusive rdf:type :ComparisonOperator ;
+    rdfs:label "Between (Inclusive)"@en ;
+    rdfs:comment "Indicates that the measured value must lie within a specified range, including both lower and upper bounds."@en .
+
+
+#################################################################
+# ComparisonOperator — instances / values - End
+#################################################################
+
+
+#################################################################
+#    Classes - (Material Quality Parameters) - End
+#################################################################
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - Aspect) - Begin
+#################################################################
+
+###  http://www.apollo-procurement.org/ontology#QualityAspect
+:hasQualityAspect rdf:type owl:ObjectProperty ;
+                  rdfs:domain :MaterialRequiredForProduction ;
+                  rdfs:range :QualityAspect ;
+                  rdfs:comment "Links a Supplier Product to a quality aspect that can be measured( eg. purity water content, phValue etc)."@en ;
+                  rdfs:label "has quality aspect"@en .
+
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - Aspect) - End
+#################################################################
+
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - QCMeasurement) - Begin
+#################################################################
+
+  
+:measuresMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QCMeasurement ;
+				  rdfs:range  :SupplierProduct ;
+				  rdfs:label "measures material" ;
+				  rdfs:comment "Links a QC measurement to the specific supplier raw material (or sample) it measures." .
+
+:forAspect rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QCMeasurement ;
+				  rdfs:range  :QualityAspect ;
+				  rdfs:label "for aspect" ;
+				  rdfs:comment "Indicates which quality aspect a QC measurement is about (purity, water content, etc.)." .
+
+###    Magnitude for QCMeasurement is  defined under :hasMagnitude right at the beginning
+
+:hasResultCategory rdf:type owl:ObjectProperty ;
+				  rdfs:domain [ rdf:type owl:Class ;
+                  owl:unionOf ( :QCMeasurement :QualitySpecification ) ] ;
+				  rdfs:range :ResultCategory ; 
+				  rdfs:label "has qualitative result category"@en ; 
+				  rdfs:comment "Associates either a quality specification or a QC measurement with a qualitative or categorical result, such as pass/fail, acceptable/ unacceptable, or conforms/does not conform. For QualitySpecification, this represents the required outcome. For QCMeasurement, this represents the observed outcome."@en .
+
+
+:performedAt rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QCMeasurement ; 
+				  rdfs:range :OwnManufacturingPlant ; 
+				  rdfs:label "performed at"@en ; 
+				  rdfs:comment "Indicates the factory or laboratory where the QC measurement was performed."@en .
+
+
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - QCMeasurement) - End
+#################################################################
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - Specification) - Begin
+#################################################################
+
+:specifiesAspect rdf:type owl:ObjectProperty ;
+                  rdfs:domain :QualitySpecification ;
+				  rdfs:range :QualityAspect ;
+				  rdfs:label "specifies quality aspect"@en ;
+				  rdfs:comment "Indicates the quality aspect (e.g., purity, pH, viscosity) to which this quality specification applies."@en .
+
+:appliesToMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ;
+				  rdfs:range :MaterialRequiredForProduction ;
+				  rdfs:label "applies to material or product"@en ;
+				  rdfs:comment "Indicates the material or supplier product to which this quality specification applies."@en .
+
+
+:applicableFactory rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ;
+				  rdfs:range :OwnManufacturingPlant ;
+				  rdfs:label "applicable factory"@en ;
+				  rdfs:comment "Indicates the manufacturing plant or factory where this quality specification applies. Allows factory-specific acceptance criteria."@en .
+
+###Also see hasResultCategory above for qualitative results
+
+
+
+:hasThresholdMagnitude rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ; 
+				  rdfs:range gist:Magnitude ; 
+				  rdfs:label "has threshold magnitude"@en ; 
+				  rdfs:comment "Specifies the numeric threshold value and unit that defines the acceptable limit for a quality aspect."@en .
+
+
+:hasLowerBoundMagnitude rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ;
+				  rdfs:range gist:Magnitude ;
+				  rdfs:label "has lower bound magnitude"@en ;
+				  rdfs:comment "Specifies the lower bound of an acceptable numeric range for a quality aspect."@en .
+
+
+:hasUpperBoundMagnitude rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ;
+				  rdfs:range gist:Magnitude ;
+				  rdfs:label "has upper bound magnitude"@en ;
+				  rdfs:comment "Specifies the upper bound of an acceptable numeric range for a quality aspect."@en .
+
+
+:hasComparisonOperator rdf:type owl:ObjectProperty ;
+				  rdfs:domain :QualitySpecification ;
+				  rdfs:range :ComparisonOperator ;
+				  rdfs:label "has comparison operator"@en ;
+				  rdfs:comment "Indicates how the measured value should be compared to the threshold, such as greater than or equal to, between, equal to, or approximately equal to."@en .
+
+######    Quality Specification Valid from and Valid to dates are defined under :hasTemporalExtent right at the beginning
+
+#################################################################
+#    Object Properties - (Material Quality Parameters - Specification) - End
+#################################################################
+
+#################################################################
+#    Data Properties - (Material Properties) - Begin
+#################################################################
+
+
+:measurementDateTime rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :QCMeasurement ;
+				  rdfs:range  xsd:dateTime ;
+				  rdfs:label "measurement dateTime" ;
+				  rdfs:comment "The date and time at which the QC measurement was performed." .
+
+
+#################################################################
+#    Data Properties - (Material Properties) - End
+#################################################################
+
+
+#################################################################
+#   Classes - Evidence / Source Objects - Begin
+#################################################################
+
+:InformationObject rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Information ;
+				  rdfs:label "Information Object"@en ;
+				  rdfs:comment "An informational artifact such as a market report, supplier email, meeting minutes, or subscription feed that contains claims about the domain."@en .
+
+:MarketResearchReport rdf:type owl:Class ;
+				  rdfs:subClassOf :InformationObject ;
+				  rdfs:label "Market Research Report"@en .
+
+:SupplierEmail rdf:type owl:Class ;
+				  rdfs:subClassOf :InformationObject ;
+				  rdfs:label "Supplier Email"@en .
+
+:MeetingMinutes rdf:type owl:Class ;
+				  rdfs:subClassOf :InformationObject ;
+				  rdfs:label "Meeting Minutes"@en .
+
+:FinancialReport rdf:type owl:Class ;
+				  rdfs:subClassOf :InformationObject ;
+				  rdfs:label "Financial / Subscription Report"@en .
+
+
+#################################################################
+#   Classes - Evidence / Source Objects  - End
+#################################################################
+
+
+
+#################################################################
+#  Classes -  Assertions (claims, not facts) - Begin
+#################################################################
+
+:Assertion rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Information ;
+				  rdfs:label "Assertion"@en ;
+				  rdfs:comment "A claim made by a source about an event, trend, expectation, or condition. Assertions may be uncertain, conflicting, or revised over time."@en .
+
+#################################################################
+#  Classes -  Assertions (claims, not facts) - End
+#################################################################
+
+#################################################################
+#  Object properties -  Assertions (claims, not facts) - Begin
+#################################################################
+
+
+
+:assertedIn rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assertion ;
+				  rdfs:range :InformationObject ;
+				  rdfs:label "asserted in"@en .
+
+
+:assertedBy rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assertion ;
+				  rdfs:range gist:Organization ;
+				  rdfs:label "asserted by"@en .
+
+
+:isAbout rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assertion ;
+				  rdfs:range owl:Thing ;
+				  rdfs:label "is about"@en ;
+				  rdfs:comment "Indicates the entity, entities, or phenomena that the assertion is about, such as a material, supplier, factory, market, event, or region."@en .
+	
+
+:assertionConfidence rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assertion ;
+				  rdfs:range :ConfidenceLevel  ;
+				  rdfs:label "assertion confidence"@en ;
+				  rdfs:comment "Confidence level or reliability of the assertion."@en .
+
+
+
+######    Assertion Valid from and Valid to dates are defined under :hasTemporalExtent right at the beginning
+
+#################################################################
+#  Object properties -  Assertions (claims, not facts) - End
+#################################################################
+
+#################################################################
+#  Data properties -  Assertions (claims, not facts) - Begin
+#################################################################
+
+:assertionMadeAt rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :Assertion ;
+				  rdfs:range xsd:dateTime ;
+				  rdfs:label "assertion made at"@en ;
+				  rdfs:comment "The date and time when the assertion was issued or published (e.g., report release date)."@en .
+
+
+#################################################################
+#  Data properties -  Assertions (claims, not facts) - End
+#################################################################
+
+
+
+#################################################################
+# Classes  - Events (real-world happenings) - Begin
+#################################################################
+
+:MarketEvent rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Event ;
+				  rdfs:label "Market Event"@en ;
+				  rdfs:comment "A real or planned event that affects supply, demand, price, or availability of a material or supplier."@en .
+
+:CapacityAdditionEvent rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketEvent ;
+				  rdfs:label "Capacity Addition Event"@en .
+
+:SupplyDisruptionEvent rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketEvent ;
+				  rdfs:label "Supply Disruption Event"@en ;
+				  skos:prefLabel "Supply Disruption"@en ;
+				  skos:altLabel "Plant Shutdown"@en ;
+				  skos:altLabel "Plant Closure"@en ;
+				  skos:altLabel "Breakdown"@en ;
+				  skos:altLabel "Unplanned Outage"@en ;
+				  skos:altLabel "Maintenance Shutdown"@en ;
+				  rdfs:comment "An event that disrupts normal supply of a materxial due to shutdowns, breakdowns, maintenance, or other operational interruptions."@en .
+
+:RegulatoryChangeEvent rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketEvent ;
+				  rdfs:label "Regulatory Change Event"@en ;
+				  skos:prefLabel "Regulatory Change Event"@en ;
+				  skos:altLabel "Rule Changes"@en ;
+				  skos:altLabel "Regulation Changes"@en ;
+				  skos:altLabel "Regulatory Requirement Changes"@en .
+
+:ForceMajeureEvent rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketEvent ;
+				  rdfs:label "Force Majeure Event"@en ;
+				  skos:prefLabel "Force Majeure Event"@en ;
+				  skos:altLabel "earthquake"@en ;
+				  skos:altLabel "flood"@en ;
+				  skos:altLabel "port strike"@en ;
+				  skos:altLabel "storm"@en ;
+				  skos:hiddenLabel "force major"@en .
+				  
+#################################################################
+# Classes  - Events (real-world happenings) - End
+#################################################################
+
+
+#################################################################
+# Object Properties  - Events (real-world happenings) - Begin
+#################################################################
+
+
+:affectsMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketEvent ;
+				 rdfs:range [ rdf:type owl:Class ;
+                          owl:unionOf ( :RawMaterialofMaterialRequiredForProduction :MaterialRequiredForProduction ) ] ;
+				  rdfs:label "affects material"@en .
+
+
+:involvesOrganization rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketEvent ;
+				  rdfs:range :Company ;
+				  rdfs:label "involves company"@en .
+
+:hasLocation rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketEvent ;
+				  rdfs:range gist:GeoLocation ;
+				  rdfs:label "has location"@en .
+
+
+#################################################################
+#   Classes  - Observations / Signals / Findings - Begin
+#################################################################
+
+:MarketSignal rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Event .
+
+:SupplySignal rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketSignal ;
+				  rdfs:label "Supply Signal"@en ;
+				  rdfs:comment "An observed signal indicating changes or stress in supply conditions, such as tightness, surplus, or disruption risk."@en .
+
+:DemandSignal rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketSignal ;
+				  rdfs:label "Demand Signal"@en ;
+				  rdfs:comment "An observed signal indicating changes in demand conditions, such as growth, slowdown, or substitution effects."@en .
+
+:CapacitySignal rdf:type owl:Class ;
+				  rdfs:subClassOf :MarketSignal ;
+				  rdfs:label "Capacity Signal"@en ;
+				  rdfs:comment "An observed signal related to production capacity utilization, additions, shutdowns, or constraints."@en .
+
+#################################################################
+#   Classes  - Observations / Signals / Trends - End
+#################################################################
+
+
+#################################################################
+# Object Properties  - Observations / Signals / Trends  - Begin
+#################################################################
+
+
+:observedMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketSignal ;
+				  rdfs:range gist:CatalogItem ;
+				  rdfs:label "observed material"@en .
+
+:observedMarket rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketSignal ;
+				  rdfs:range gist:GeoLocation ;
+				  rdfs:label "observed market"@en .
+
+###    Magnitude for MarketSignal is  defined under :hasMagnitude right at the beginning
+
+#################################################################
+# Object Properties  - Observations / Signals / Trends  - End
+#################################################################
+
+
+
+#################################################################
+# Classes  -  Market Drivers - Begin
+#################################################################
+
+:MarketDriver rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Category ;
+				  rdfs:label "Market Driver"@en ;
+				  rdfs:comment "An underlying factor that influences supply, demand, price, or risk, such as energy costs, feedstock availability, technology shifts, or regulation."@en .
+
+#################################################################
+# Market Driver   — instances / values - Begin (Core Set)
+#################################################################
+
+:DemandGrowth rdf:type :MarketDriver ;
+    rdfs:label "Demand Growth"@en ;
+    rdfs:comment "Market conditions where increasing downstream consumption is driving higher demand for a material."@en .
+
+:DemandDecline rdf:type :MarketDriver ;
+    rdfs:label "Demand Decline"@en ;
+    rdfs:comment "Market conditions where weakening downstream consumption is reducing demand for a material."@en .
+
+:SupplyConstraint rdf:type :MarketDriver ;
+    rdfs:label "Supply Constraint"@en ;
+    rdfs:comment "Conditions where limited production capacity, shutdowns, or disruptions restrict supply availability."@en .
+
+:CapacityExpansion rdf:type :MarketDriver ;
+    rdfs:label "Capacity Expansion"@en ;
+    rdfs:comment "Addition of new production capacity that increases supply availability."@en .
+
+:FeedstockCostChange rdf:type :MarketDriver ;
+    rdfs:label "Feedstock Cost Change"@en ;
+    rdfs:comment "Changes in upstream raw material or feedstock prices that impact production costs."@en .
+
+:EnergyCostChange rdf:type :MarketDriver ;
+    rdfs:label "Energy Cost Change"@en ;
+    rdfs:comment "Changes in energy prices affecting manufacturing or logistics costs."@en .
+
+:RegulatoryChange rdf:type :MarketDriver ;
+    rdfs:label "Regulatory Change"@en ;
+    rdfs:comment "New or changing regulations impacting production, trade, or compliance costs."@en .
+
+:GeopoliticalRisk rdf:type :MarketDriver ;
+    rdfs:label "Geopolitical Risk"@en ;
+    rdfs:comment "Political or geopolitical developments that impact supply chains, trade flows, or risk exposure."@en .
+
+:LogisticsDisruption rdf:type :MarketDriver ;
+    rdfs:label "Logistics Disruption"@en ;
+    rdfs:comment "Disruptions in transportation or logistics networks affecting material availability or cost."@en .
+
+
+#################################################################
+# Market Driver   — instances / values - End (Core Set)
+#################################################################
+
+
+#################################################################
+# Classes  -  Market Drivers - End
+#################################################################
+
+#################################################################
+# Object Properties  -  Market Drivers - Begin
+#################################################################
+
+:drivenBy rdf:type owl:ObjectProperty ;
+				  rdfs:domain gist:Assertion ;
+				  rdfs:range :MarketDriver ;
+				  rdfs:label "driven by market driver"@en ;
+				  rdfs:comment "Links an assertion or observation to the underlying market driver that explains the observed or expected condition."@en .
+
+:drivesEvent rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketDriver ;
+				  rdfs:range :MarketEvent ;
+				  rdfs:label "drives event"@en .
+
+:drivesSignal rdf:type owl:ObjectProperty ;
+				  rdfs:domain :MarketDriver ;
+				  rdfs:range :MarketSignal ;
+				  rdfs:label "drives trend"@en .
+
+#################################################################
+# Object Properties  -  Market Drivers - End
+#################################################################
+
+#################################################################
+# Classes - Assessments (derived interpretations) - Begin
+#################################################################
+
+:Assessment rdf:type owl:Class ;
+    rdfs:subClassOf gist:Information ;
+    rdfs:label "Assessment"@en ;
+    rdfs:comment "An evaluative interpretation derived from events, observations, and assertions, such as risk level, outlook, or impact analysis."@en .
+
+:RiskAssessment rdf:type owl:Class ;
+    rdfs:subClassOf :Assessment ;
+    rdfs:label "Risk Assessment"@en .
+
+
+:AssessmentOutcome rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Assessment Outcome"@en ;
+    rdfs:comment "A controlled category representing the conclusion or decision resulting from an assessment, such as approve, reject, or shortlist."@en .
+
+#################################################################
+# AssessmentOutcome  — instances / values - Begin
+#################################################################
+
+
+:Approved rdf:type :AssessmentOutcome ;
+    rdfs:label "Approved"@en ;
+    rdfs:comment "Indicates that the assessed option meets requirements and is approved for use or selection."@en .
+
+:Rejected rdf:type :AssessmentOutcome ;
+    rdfs:label "Rejected"@en ;
+    rdfs:comment "Indicates that the assessed option does not meet requirements and is rejected."@en .
+
+:Shortlisted rdf:type :AssessmentOutcome ;
+    rdfs:label "Shortlisted"@en ;
+    rdfs:comment "Indicates that the assessed option is acceptable and retained for further evaluation or negotiation."@en .
+
+#################################################################
+# AssessmentOutcome  — instances / values - End
+#################################################################
+
+
+#################################################################
+# Classes - Assessments (derived interpretations) - End
+#################################################################
+
+#################################################################
+# Object Properties - Assessments (derived interpretations) - End
+#################################################################
+:assessesMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range gist:CatalogItem ;
+				  rdfs:label "assesses material"@en .
+
+:assessesCompany rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range :Company ;
+				  rdfs:label "assesses supplier"@en .
+
+
+:basedOnEvent rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range :MarketEvent ;
+				  rdfs:label "based on event"@en .
+
+:basedOnSignal rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range :MarketSignal ;
+				  rdfs:label "based on trend"@en .
+
+
+:assessmentConfidence rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range :ConfidenceLevel ;
+				  rdfs:label "has confidence level"@en ;
+				  rdfs:comment "Indicates the qualitative confidence assigned to an assessment result."@en .
+
+:hasAssessmentOutcome rdf:type owl:ObjectProperty ;
+				  rdfs:domain gist:Assessment ;
+				  rdfs:range :AssessmentOutcome ;
+				  rdfs:label "has assessment outcome"@en ;
+				  rdfs:comment "Indicates the final decision or conclusion reached by an assessment."@en .
+
+
+
+#################################################################
+# Data properties - Assessments (derived interpretations) - Begin
+#################################################################
+
+
+:assessmentMadeAt rdf:type owl:DatatypeProperty ;
+				  rdfs:domain :Assessment ;
+				  rdfs:range xsd:dateTime ;
+				  rdfs:label "Assessment made at"@en ;
+				  rdfs:comment "The date and time when the assertion was issued or published (e.g., report release date)."@en .
+
+#################################################################
+# Data properties - Assessments (derived interpretations) - End
+#################################################################
+
+
+#################################################################
+# Classes - Meeting - Begin
+#################################################################
+
+:Meeting rdf:type owl:Class ;
+    rdfs:subClassOf gist:Event ;
+    rdfs:label "Meeting"@en ;
+    rdfs:comment "A formal or informal interaction between two or more parties where topics are discussed, decisions are made, and commitments or action items may be agreed."@en .
+
+
+#################################################################
+# Classes - Meeting - End
+#################################################################
+
+
+
+#################################################################
+# Object Properties - Meeting - Begin
+#################################################################
+
+:involvesOrganization rdf:type owl:ObjectProperty ;
+    rdfs:domain :Meeting ;
+    rdfs:range gist:Organization ;
+    rdfs:label "involves organization"@en ;
+    rdfs:comment "Indicates an organization that participated in the meeting."@en .
+
+:relatedToProject rdf:type owl:ObjectProperty ;
+    rdfs:domain :Meeting ;
+    rdfs:range :Project ;
+    rdfs:label "related to project"@en ;
+    rdfs:comment "Links a meeting to the project or initiative discussed."@en .
+
+:relatedToMaterial rdf:type owl:ObjectProperty ;
+    rdfs:domain :Meeting ;
+    rdfs:range :MaterialRequiredForProduction ;
+    rdfs:label "related to project"@en ;
+    rdfs:comment "Links a meeting to the material discussed."@en .
+
+
+
+#################################################################
+# Object Properties - Meeting - End
+#################################################################
+
+
+
+#################################################################
+# Classes - Project - Begin
+#################################################################
+
+:Project rdf:type owl:Class ;
+				  rdfs:subClassOf gist:Plan ;
+				  rdfs:label "Project"@en ;
+				  rdfs:comment "A structured initiative or program with defined objectives, scope, and expected outcomes, often spanning multiple meetings and actions."@en .
+
+:ProcessImprovementProject rdf:type owl:Class ;
+				  rdfs:subClassOf :Project ;
+				  rdfs:label "Process Improvement Project"@en ;
+				  rdfs:comment "A collaborative project between customer and supplier aimed at improving productivity, quality, consistency, or cost at a manufacturing facility."@en .
+
+
+
+#################################################################
+# Classes - Project - End
+#################################################################
+
+
+#################################################################
+# Object Property - Project - Begin
+#################################################################
+
+:forSupplier rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Project ;
+				  rdfs:range :Company ;
+				  rdfs:label "for supplier"@en ;
+				  rdfs:comment "Indicates the supplier organization involved in the project."@en .
+
+:atSupplierManufacturingPlant rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Project ;
+				  rdfs:range :SupplierManufacturingPlant ;
+				  rdfs:label "at plant"@en ;
+				  rdfs:comment "Indicates the supplier manufacturing plant where the project is executed."@en .
+
+:relatedMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :Project ;
+				  rdfs:range :MaterialRequiredForProduction ;
+				  rdfs:label "related material"@en ;
+				  rdfs:comment "Links a project to the material(s) impacted by it."@en .
+
+#################################################################
+# Object Property - Project - End
+#################################################################
+
+#################################################################
+# Classes - Action Item - Begin
+#################################################################
+
+:ActionItem rdf:type owl:Class ;
+    rdfs:subClassOf gist:Commitment ;
+    rdfs:label "Action Item"@en ;
+    rdfs:comment "A specific task or obligation agreed during a meeting, with an owner, due date, and expected outcome."@en .
+
+#################################################################
+# Classes - Action Item - End
+#################################################################
+
+
+#################################################################
+# Object Properties - Action Item - Begin
+#################################################################
+
+:originatedFromMeeting rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ActionItem ;
+				  rdfs:range :Meeting ;
+				  rdfs:label "originated from meeting"@en ;
+				  rdfs:comment "Indicates the meeting during which the action item was agreed."@en .
+
+:assignedTo rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ActionItem ;
+				  rdfs:range gist:Organization ;
+				  rdfs:label "assigned to"@en ;
+				  rdfs:comment "Indicates the organization responsible for completing the action item."@en .
+
+:relatedToProject rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ActionItem ;
+				  rdfs:range :Project ;
+				  rdfs:label "related to project"@en ;
+				  rdfs:comment "Links an action item to the project it supports."@en .
+
+:relatedMaterial rdf:type owl:ObjectProperty ;
+				  rdfs:domain :ActionItem ;
+				  rdfs:range :MaterialRequiredForProduction ;
+				  rdfs:label "related material"@en ;
+				  rdfs:comment "Links an action item to the material it impacts, if applicable."@en .
+
+#################################################################
+# Object Properties - Action Item - Begin
+#################################################################
+
+#################################################################
+#Data Properties - # Action Item  - Begin
+#################################################################
+
+
+:hasStatus rdf:type owl:DatatypeProperty ;
+    rdfs:domain :ActionItem ;
+    rdfs:range :ActionItemStatus ;
+    rdfs:label "has status"@en ;
+    rdfs:comment "The current status of the action item (Open, In Progress, Completed, Delayed)."@en .
+
+:dueBy rdf:type owl:DatatypeProperty ;
+    rdfs:domain :ActionItem ;
+    rdfs:range xsd:date ;
+    rdfs:label "due by date"@en ;
+    rdfs:comment "The target completion date for the action item."@en .
+
+#################################################################
+#Data Properties - # Action Item  - End
+#################################################################
+
+
+
+#################################################################
+#Classes - # Action Item Status - Begin
+#################################################################
+
+:ActionItemStatus rdf:type owl:Class ;
+    rdfs:subClassOf gist:Category ;
+    rdfs:label "Action Item Status"@en .
+
+#################################################################
+#Classes - # Action Item Status - End
+#################################################################
+
+#################################################################
+# ActionItemStatus Instances / values - Begin
+#################################################################
+
+
+:Open rdf:type :ActionItemStatus ;
+    rdfs:label "Open"@en .
+
+:InProgress rdf:type :ActionItemStatus ;
+    rdfs:label "In Progress"@en .
+
+:Completed rdf:type :ActionItemStatus ;
+    rdfs:label "Completed"@en .
+
+:Delayed rdf:type :ActionItemStatus ;
+    rdfs:label "Delayed"@en .
+#################################################################
+# ActionItemStatus Instances / values - End
+#################################################################
+
+
+
+
+
+
+###
+####################################################################
+####    Classes (Material Risk Scoring Related - Begin)
+####################################################################
+###### Hierarchy of Strategy
+###:PurchasingStrategy rdf:type owl:Class ;
+###    rdfs:subClassOf gist:Category ;
+###    rdfs:label "Purchasing Strategy (Quadrant)"@en ;
+###    rdfs:comment "The high-level quadrant (e.g., 'Change Nature of Demand')."@en .
+###
+###:PurchasingLever rdf:type owl:Class ;
+###    rdfs:subClassOf gist:Category ;
+###    rdfs:label "Purchasing Lever"@en ;
+###    rdfs:comment "The 16 sub-groups of strategy (e.g., 'Innovation Breakthrough')."@en .
+###
+###:PurchasingMethod rdf:type owl:Class ;
+###    rdfs:subClassOf gist:IntellectualProperty ;
+###    rdfs:label "Purchasing Method (64 Squares)"@en ;
+###    rdfs:comment "The specific actionable tactic (e.g., 'Reverse Auctions') from the 8x8 grid."@en .
+###
+###:PowerScoreObservation rdf:type owl:Class ;
+###    rdfs:subClassOf gist:Event ;
+###    rdfs:label "Power Score Observation"@en ;
+###    rdfs:comment "An event capturing the Supply/Demand power balance at a specific date. Output of the Chessboard Logic."@en .
+###
+###
+###
+###
+###
+###
+###
+####################################################################
+####    Classes (Material Risk Scoring Related - End)
+####################################################################
+###
+###
+###
+####################################################################
+####    Object Properties (Material Risk Scoring Related - Begin)
+####################################################################
+###
+###### Linking to the Material
+###:assessedMaterial rdf:type owl:ObjectProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range :MaterialRequiredForProduction ;
+###    rdfs:label "assessed material"@en .
+###
+###:recommendedMethod rdf:type owl:ObjectProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range :PurchasingMethod ;
+###    rdfs:label "recommended method"@en ;
+###    rdfs:comment "The specific method (e.g., 'Reverse Auction') recommended based on the grid coordinates."@en .
+###
+###
+###### The Quadrant at that time
+###:historicalQuadrant rdf:type owl:ObjectProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range :PurchasingStrategy ;
+###    rdfs:label "Historical Quadrant"@en .
+###
+###
+###
+####################################################################
+####    Object Properties (Material Risk Scoring Related - End)
+####################################################################
+###
+###
+###
+###
+###
+###
+###
+####################################################################
+####    Data Properties - Material Risk Scoring Related - Begin
+####################################################################
+###
+###### Grid Coordinates for the 64 Methods
+###:gridCoordinateX rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PurchasingMethod ;
+###    rdfs:range xsd:integer ;
+###    rdfs:label "Grid X Coordinate (Supply Power 1-8)"@en .
+###
+###:gridCoordinateY rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PurchasingMethod ;
+###    rdfs:range xsd:integer ;
+###    rdfs:label "Grid Y Coordinate (Demand Power 1-8)"@en .
+###
+###:observedDemandPower rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range xsd:float ;
+###    rdfs:label "Observed Demand Power (0-1)"@en .
+###
+###:observedSupplyPower rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range xsd:float ;
+###    rdfs:label "Observed Supply Power (0-1)"@en .
+###
+###:assessmentDate rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range xsd:dateTime ;
+###    rdfs:label "Assessment Date"@en .
+###
+###:changeRationale rdf:type owl:DatatypeProperty ;
+###    rdfs:domain :PowerScoreObservation ;
+###    rdfs:range xsd:string ;
+###    rdfs:comment "AI explanation for why the score or strategy changed (e.g., 'Competitor consolidation increased Supply Power')."@en .
+###
