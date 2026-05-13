@@ -6,8 +6,27 @@ import re
 # === AWS Bedrock Setup ===
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
-# Model ARN
+# Model IDs
 TEXT_MODEL_ARN = "arn:aws:bedrock:us-east-1:127214171089:inference-profile/us.meta.llama4-scout-17b-instruct-v1:0"
+EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
+
+def get_embedding(text):
+    """
+    Generate embedding using Amazon Titan v2.
+    """
+    try:
+        body = json.dumps({"inputText": text})
+        response = bedrock.invoke_model(
+            modelId=EMBED_MODEL_ID,
+            body=body,
+            contentType="application/json",
+            accept="application/json"
+        )
+        response_body = json.loads(response['body'].read())
+        return response_body.get("embedding")
+    except Exception as e:
+        print(f"Embedding failed: {e}")
+        return None
 
 def invoke_bedrock_text(system_msg, user_content, temperature=0.1, max_tokens=4096):
     """
@@ -50,24 +69,32 @@ def invoke_bedrock_text(system_msg, user_content, temperature=0.1, max_tokens=40
                     if bracket_count == 0:
                         json_text = text[start_idx : i + 1]
                         
-                        # 1. Try standard JSON
+                        # 1. Try standard JSON first
                         try:
                             return json.loads(json_text)
-                        except:
+                        except json.JSONDecodeError:
                             pass
                             
-                        # 2. Try cleaning common issues (single quotes, trailing commas)
+                        # 2. Handle common LLM issues (trailing commas, single quotes around keys)
                         try:
-                            # Replace single quotes with double quotes (basic)
-                            cleaned = re.sub(r"'(.*?)'", r'"\1"', json_text)
+                            # Remove trailing commas before closing brackets
+                            cleaned = re.sub(r",\s*([}\]])", r"\1", json_text)
+                            # Fix single quotes around keys/values only if NOT part of a Cypher string
+                            # Instead of a dangerous regex, let's try a safer replacement for keys only
+                            cleaned = re.sub(r"'(\w+)':", r'"\1":', cleaned)
                             return json.loads(cleaned)
                         except:
-                            return None
+                            # Final fallback: just try to load the original block
+                            try:
+                                return json.loads(json_text.replace("'", '"'))
+                            except:
+                                return None
         return None
         
     except Exception as e:
         print(f"Bedrock invocation failed: {e}")
         return None
+
 
 def generate_takeaways(extracted_text: str, material: str) -> str:
     """
@@ -117,6 +144,26 @@ def news_agent(extracted_text, material, report_url):
     except:
         return []
 
+def invoke_bedrock_chat(system_msg, user_content, temperature=0.5):
+    """
+    Simple text-to-text chat invocation without JSON enforcement.
+    """
+    try:
+        messages = [{"role": "user", "content": [{"text": user_content.strip()}]}]
+        response = bedrock.converse(
+            modelId=TEXT_MODEL_ARN,
+            messages=messages,
+            system=[{"text": system_msg.strip()}],
+            inferenceConfig={"maxTokens": 2048, "temperature": temperature}
+        )
+        if response.get('output') and response['output'].get('message'):
+            content = response['output']['message'].get('content', [])
+            if content:
+                return content[0].get('text', '')
+        return "I encountered an error processing your request."
+    except Exception as e:
+        return f"Chat error: {e}"
+
 def price_by_date_agent(extracted_text, material):
     """
     Extracts price data by date.
@@ -135,3 +182,48 @@ def price_by_date_agent(extracted_text, material):
                 p["region"] = str(p["region"]).split(",")[-1].strip()
         return price_list
     return []
+
+def generate_cypher(question, schema, material_context="Glycerine"):
+    """
+    LLM Agent that generates a Cypher query based on the database schema.
+    """
+    system_msg = f"""
+    You are a Neo4j Cypher Expert. Generate a Cypher query to answer the user's question.
+    
+    SCHEMA:
+    {schema}
+    
+    DATA DICTIONARY:
+    - Materials: (m:ns0__MaterialRequiredForProduction)
+    - Pricing: (pe:ns0__PriceEvent) linked to material via [:ns0__OBSERVED_FOR].
+      Properties: pe.ns0__price, pe.ns0__price_date, pe.ns0__uom, pe.ns0__region
+    - News/Disruptions: (me:ns0__MarketEvent) linked to material via [:ns0__IMPACTS].
+      Properties: me.ns0__title, me.ns0__date, me.ns0__region
+    - Findings/Takeaways: (a:ns0__Assertion) linked to material via [:ns0__RELATES_TO].
+      Properties: a.ns0__content, a.ns0__date, a.ns0__publication
+
+    CRITICAL RULES:
+    1. NEVER put a 'WHERE' clause immediately after a 'RETURN'.
+    2. Use 'ns0__' for ALL properties listed above.
+    3. DATE FORMAT: Always convert user dates to 'YYYY-MM-DD'. In the query, use 'CONTAINS' for the date to be safe.
+       GOOD: WHERE pe.ns0__price_date CONTAINS '2023-11-16'
+    4. For 'price trends', always use ns0__PriceEvent and ns0__price_date.
+    
+    EXAMPLE - Price of Glycerine on a date:
+    MATCH (m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label CONTAINS 'Glycerine'
+    MATCH (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m)
+    WHERE pe.ns0__price_date CONTAINS '2023-11-16'
+    RETURN pe.ns0__price, pe.ns0__uom, m.rdfs__label
+
+    EXAMPLE - Market Disruptions (Vector Search):
+    CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node AS n, score
+    MATCH (n)-[:ns0__RELATES_TO]->(m:ns0__MaterialRequiredForProduction)
+    RETURN n.ns0__content, n.ns0__date, m.rdfs__label
+    ORDER BY n.ns0__date DESC
+    """
+    
+    # We use a lower temperature for code generation
+    cypher = invoke_bedrock_chat(system_msg, question, temperature=0.0)
+    # Clean up any markdown blocks if the LLM adds them
+    cypher = cypher.replace("```cypher", "").replace("```", "").strip()
+    return cypher

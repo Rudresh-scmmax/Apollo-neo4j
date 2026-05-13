@@ -1,0 +1,22 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix : <http://www.apollo-procurement.org/ontology#> .
+
+:PriceEventShape
+    a sh:NodeShape ;
+    sh:targetClass :PriceEvent ;
+    sh:property [
+        sh:path :price_date ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:date ;
+        sh:name "price date" ;
+        sh:description "The date of the price event." ;
+    ] ;
+    sh:property [
+        sh:path :chemical_id_ref ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "chemical reference" ;
+        sh:description "A reference to the chemical entity." ;
+    ] .

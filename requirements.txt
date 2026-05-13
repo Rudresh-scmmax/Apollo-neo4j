@@ -1,3 +1,7 @@
-neo4j
+fastapi
+uvicorn
 boto3
-pymupdf
+neo4j
+python-multipart
+jinja2
+aiofiles

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apollo | Procurement Intelligence</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --bg: #0b0f19;
+            --card-bg: rgba(23, 32, 51, 0.7);
+            --text: #e2e8f0;
+            --accent: #6366f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0b0f19);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            padding: 1.5rem 2rem;
+            background: rgba(11, 15, 25, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #10b981;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        /* Chat Container */
+        .chat-container {
+            flex: 1;
+            max-width: 1000px;
+            margin: 2rem auto;
+            width: 95%;
+            display: flex;
+            flex-direction: column;
+            background: var(--card-bg);
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        #chat-messages {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar */
+        #chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 1rem 1.4rem;
+            border-radius: 18px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--accent), #4f46e5);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .bot-message {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 4px;
+        }
+
+        .bot-message pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 1.5rem 2rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            gap: 1rem;
+        }
+
+        input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 14px;
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.1);
+        }
+
+        button {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            border: none;
+            padding: 0 1.8rem;
+            border-radius: 14px;
+            color: #0b0f19;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 242, 254, 0.4);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Particles/Glow */
+        .glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: var(--secondary);
+            filter: blur(150px);
+            opacity: 0.1;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glow" style="top: 10%; left: 10%;"></div>
+    <div class="glow" style="bottom: 10%; right: 10%;"></div>
+
+    <header>
+        <div class="logo">APOLLO</div>
+        <div class="status">
+            <div class="status-dot"></div>
+            GraphRAG Core Active
+        </div>
+    </header>
+
+    <div class="chat-container">
+        <div id="chat-messages">
+            <div class="message bot-message">
+                Hello! I am your Apollo Market Intelligence Assistant. I have access to your Neo4j Knowledge Graph and
+                the latest ICIS reports. How can I help you today?
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input"
+                placeholder="Ask about Glycerine prices, market trends, or report findings..."
+                onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" id="send-btn">
+                SEND
+                <div class="loader" id="loader"></div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const messagesContainer = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const loader = document.getElementById('loader');
+        const sendBtn = document.getElementById('send-btn');
+
+        async function sendMessage() {
+            const query = userInput.value.trim();
+            if (!query) return;
+
+            // Add user message
+            addMessage(query, 'user-message');
+            userInput.value = '';
+
+            // Show loader
+            loader.style.display = 'inline-block';
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                addMessage(data.response, 'bot-message');
+            } catch (error) {
+                addMessage("Error connecting to the intelligence core: " + error.message, 'bot-message');
+            } finally {
+                loader.style.display = 'none';
+                sendBtn.disabled = false;
+            }
+        }
+
+        function addMessage(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.innerText = text;
+            messagesContainer.appendChild(div);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>
