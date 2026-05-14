@@ -43,14 +43,20 @@ def deploy():
     wait_for_command(cmd_id)
     
     # 2. Upload Files
-    cmd_id = upload_file("app.py", "/home/ubuntu/apollo/app.py")
-    wait_for_command(cmd_id)
-    cmd_id = upload_file("llm_module.py", "/home/ubuntu/apollo/llm_module.py")
-    wait_for_command(cmd_id)
-    cmd_id = upload_file("static/index.html", "/home/ubuntu/apollo/static/index.html")
-    wait_for_command(cmd_id)
-    cmd_id = upload_file("requirements.txt", "/home/ubuntu/apollo/requirements.txt")
-    wait_for_command(cmd_id)
+    files_to_upload = [
+        ("app.py", "/home/ubuntu/apollo/app.py"),
+        ("llm_module.py", "/home/ubuntu/apollo/llm_module.py"),
+        ("etl_pipeline.py", "/home/ubuntu/apollo/etl_pipeline.py"),
+        ("import_ontology.py", "/home/ubuntu/apollo/import_ontology.py"),
+        ("process_pdf_to_neo4j.py", "/home/ubuntu/apollo/process_pdf_to_neo4j.py"),
+        ("setup_vector_index.py", "/home/ubuntu/apollo/setup_vector_index.py"),
+        ("static/index.html", "/home/ubuntu/apollo/static/index.html"),
+        ("requirements.txt", "/home/ubuntu/apollo/requirements.txt")
+    ]
+    
+    for local, remote in files_to_upload:
+        cmd_id = upload_file(local, remote)
+        wait_for_command(cmd_id)
     
     # 3. Install and Run
     launch_cmd = """

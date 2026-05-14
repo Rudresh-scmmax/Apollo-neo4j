@@ -23,22 +23,11 @@ def master_setup():
     except Exception as e:
         print(f"Password reset skipped: {e}")
     
-    # 1. Initialize & Import Ontology
-    print("\n[1/4] Importing Ontology...")
-    import_ontology.URI = NEW_URI
-    import_ontology.import_ontology("apollo5.ttl")
+    # 1. Run Unified ETL Pipeline
+    import etl_pipeline
+    etl_pipeline.run_pipeline()
     
-    # 2. Ingest PDFs
-    print("\n[2/4] Ingesting PDF Reports...")
-    process_pdf_to_neo4j.URI = NEW_URI
-    process_pdf_to_neo4j.process_all_pdfs()
-    
-    # 3. Setup Vector Index
-    print("\n[3/4] Building Vector Index...")
-    setup_vector_index.URI = NEW_URI
-    setup_vector_index.setup_vector_index()
-    
-    # 4. Update App Config
+    # 2. Update App Config
     print("\n[4/4] Updating App Configuration...")
     with open("app.py", "r") as f:
         content = f.read()

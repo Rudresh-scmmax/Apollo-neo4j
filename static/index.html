@@ -5,9 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apollo | Procurement Intelligence</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --primary: #00f2fe;
@@ -97,6 +96,221 @@
             flex-direction: column;
             gap: 1.5rem;
             scroll-behavior: smooth;
+        }
+
+        /* Markdown Table Styling */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1rem 0;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        th {
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Insights Dashboard Styles */
+        .insights-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 15, 30, 0.98);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .insights-panel.active {
+            display: flex;
+        }
+
+        .insights-header {
+            padding: 1.5rem 3rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .insights-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .insights-sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.02);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .inventory-item {
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .inventory-item:hover, .inventory-item.active {
+            background: rgba(0, 242, 254, 0.1);
+            border-color: var(--primary);
+            transform: translateX(5px);
+        }
+
+        .inventory-item h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--primary);
+        }
+
+        .inventory-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.7rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+        }
+
+        .insights-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .insights-tabs {
+            padding: 1.5rem 3rem;
+            display: flex;
+            gap: 2rem;
+            background: rgba(255, 255, 255, 0.01);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-family: 'Outfit';
+            font-size: 1rem;
+            letter-spacing: 1px;
+            padding: 0.5rem 0;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-btn.active {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1.6rem;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 3rem;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .insight-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .insight-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .card-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--primary);
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+        }
+
+        .month-badge {
+            padding: 4px 12px;
+            background: var(--primary);
+            color: black;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .takeaways-list {
+            max-width: 800px;
+        }
+
+        .takeaway-item {
+            padding: 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .takeaway-item:last-child {
+            border-bottom: none;
         }
 
         /* Scrollbar */
@@ -219,14 +433,155 @@
 
         /* Particles/Glow */
         .glow {
-            position: absolute;
-            width: 300px;
-            height: 300px;
-            background: var(--secondary);
-            filter: blur(150px);
-            opacity: 0.1;
-            pointer-events: none;
+            position: fixed;
+            width: 40vw;
+            height: 40vw;
+            background: radial-gradient(circle, rgba(0, 242, 254, 0.05) 0%, transparent 70%);
+            border-radius: 50%;
             z-index: -1;
+            filter: blur(80px);
+        }
+
+        /* Management Panel */
+        .mgmt-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 350px;
+            height: 100vh;
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2000;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .mgmt-panel.active {
+            right: 0;
+        }
+
+        .mgmt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        .mgmt-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .close-mgmt {
+            cursor: pointer;
+            color: #888;
+            transition: color 0.3s;
+        }
+
+        .close-mgmt:hover {
+            color: #fff;
+        }
+
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .upload-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .upload-card h3 {
+            font-size: 0.9rem;
+            color: #eee;
+            margin: 0;
+        }
+
+        .upload-card p {
+            font-size: 0.8rem;
+            color: #888;
+            margin: 0;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn-upload {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .btn-upload:hover {
+            background: var(--primary);
+            color: #000;
+        }
+
+        .mgmt-btn-trigger {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .mgmt-btn-trigger:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: var(--primary);
+            color: #000;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 3000;
+            animation: fadeIn 0.3s ease-out;
         }
     </style>
 </head>
@@ -237,11 +592,70 @@
 
     <header>
         <div class="logo">APOLLO</div>
-        <div class="status">
-            <div class="status-dot"></div>
-            GraphRAG Core Active
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button class="mgmt-btn-trigger" id="mgmt-btn">DATABASE MGMT</button>
+            <button class="mgmt-btn-trigger" id="insights-btn" style="background: var(--primary); color: #000;">INSIGHTS DASHBOARD</button>
+            <div class="status">
+                <div class="status-dot"></div>
+                GraphRAG Core Active
+            </div>
         </div>
     </header>
+
+    <!-- Data Management Panel -->
+    <div class="mgmt-panel" id="mgmt-panel">
+        <div class="mgmt-header">
+            <div class="mgmt-title">DATA MANAGEMENT</div>
+            <div class="close-mgmt" id="mgmt-close">✕</div>
+        </div>
+        <div class="upload-section">
+            <div class="upload-card">
+                <h3>Ontology (TTL)</h3>
+                <p>Update your knowledge graph schema and definitions.</p>
+                <div class="file-input-wrapper">
+                    <button class="btn-upload" id="ttl-label">Select .ttl File</button>
+                    <input type="file" id="ttl-upload" accept=".ttl" onchange="updateLabel('ttl-upload', 'ttl-label')">
+                </div>
+                <button class="btn-upload" style="background: var(--primary); color: #000;" onclick="uploadFile('ttl-upload', '/upload/ttl')">SYNC ONTOLOGY</button>
+            </div>
+
+            <div class="upload-card">
+                <h3>Market Report (PDF)</h3>
+                <p>Upload new ICIS reports for automated ingestion.</p>
+                <div class="file-input-wrapper">
+                    <button class="btn-upload" id="pdf-label">Select .pdf File</button>
+                    <input type="file" id="pdf-upload" accept=".pdf" onchange="updateLabel('pdf-upload', 'pdf-label')">
+                </div>
+                <button class="btn-upload" style="background: var(--primary); color: #000;" onclick="uploadFile('pdf-upload', '/upload/pdf')">INGEST REPORT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Insights Dashboard Panel -->
+    <div class="insights-panel" id="insights-panel">
+        <div class="insights-header">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <h2 style="margin:0; font-family: 'Outfit'; letter-spacing: 1px;">MARKET INSIGHTS</h2>
+                <div id="selected-month-badge" class="month-badge">Select a month</div>
+            </div>
+            <button class="close-mgmt" id="insights-close" style="font-size: 1.5rem;">&times;</button>
+        </div>
+        <div class="insights-layout">
+            <div class="insights-sidebar" id="inventory-list"></div>
+            <div class="insights-main">
+                <div class="insights-tabs">
+                    <button class="tab-btn active" data-tab="prices">Price History</button>
+                    <button class="tab-btn" data-tab="news">Market News</button>
+                    <button class="tab-btn" data-tab="takeaways">Key Takeaways</button>
+                </div>
+                <div class="tab-content active" id="tab-prices"><div id="prices-container"></div></div>
+                <div class="tab-content" id="tab-news"><div id="news-container" class="cards-grid"></div></div>
+                <div class="tab-content" id="tab-takeaways"><div id="takeaways-container" class="takeaways-list"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
 
     <div class="chat-container">
         <div id="chat-messages">
@@ -267,15 +681,39 @@
         const loader = document.getElementById('loader');
         const sendBtn = document.getElementById('send-btn');
 
+        const mgmtPanel = document.getElementById('mgmt-panel');
+        const mgmtBtn = document.getElementById('mgmt-btn');
+        const mgmtClose = document.getElementById('mgmt-close');
+
+        const insightsPanel = document.getElementById('insights-panel');
+        const insightsBtn = document.getElementById('insights-btn');
+        const insightsClose = document.getElementById('insights-close');
+
+        mgmtBtn.addEventListener('click', () => mgmtPanel.classList.add('active'));
+        mgmtClose.addEventListener('click', () => mgmtPanel.classList.remove('active'));
+
+        insightsBtn.addEventListener('click', () => {
+            insightsPanel.classList.add('active');
+            loadInventory();
+        });
+        insightsClose.addEventListener('click', () => insightsPanel.classList.remove('active'));
+
+        // Tab Switching Logic
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+            });
+        });
+
         async function sendMessage() {
             const query = userInput.value.trim();
             if (!query) return;
 
-            // Add user message
             addMessage(query, 'user-message');
             userInput.value = '';
-
-            // Show loader
             loader.style.display = 'inline-block';
             sendBtn.disabled = true;
 
@@ -285,11 +723,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: query })
                 });
-
                 const data = await response.json();
                 addMessage(data.response, 'bot-message');
             } catch (error) {
-                addMessage("Error connecting to the intelligence core: " + error.message, 'bot-message');
+                addMessage("Error connecting to core: " + error.message, 'bot-message');
             } finally {
                 loader.style.display = 'none';
                 sendBtn.disabled = false;
@@ -299,9 +736,106 @@
         function addMessage(text, className) {
             const div = document.createElement('div');
             div.className = `message ${className}`;
-            div.innerText = text;
+            div.innerHTML = marked.parse(text);
             messagesContainer.appendChild(div);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function updateLabel(inputId, labelId) {
+            const input = document.getElementById(inputId);
+            const label = document.getElementById(labelId);
+            if (input.files.length > 0) label.textContent = input.files[0].name;
+        }
+
+        function showNotification(msg) {
+            const notif = document.getElementById('notification');
+            notif.textContent = msg;
+            notif.style.display = 'block';
+            setTimeout(() => { notif.style.display = 'none'; }, 5000);
+        }
+
+        async function uploadFile(inputId, endpoint) {
+            const input = document.getElementById(inputId);
+            if (input.files.length === 0) { showNotification("Please select a file first."); return; }
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            try {
+                showNotification("Uploading...");
+                const response = await fetch(endpoint, { method: 'POST', body: formData });
+                const result = await response.json();
+                showNotification(result.message || result.detail);
+                input.value = '';
+                const labelId = inputId.replace('upload', 'label');
+                document.getElementById(labelId).textContent = `Select .${inputId.split('-')[0]} File`;
+            } catch (error) { showNotification("Upload failed: " + error.message); }
+        }
+
+        async function loadInventory() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = '<p style="opacity:0.5; text-align:center;">Loading inventory...</p>';
+            try {
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+                list.innerHTML = '';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'inventory-item';
+                    div.innerHTML = `
+                        <h4>${item.month}</h4>
+                        <div class="inventory-stats">
+                            <span>Prices: ${item.prices}</span>
+                            <span>News: ${item.news}</span>
+                            <span>Points: ${item.takeaways}</span>
+                        </div>
+                    `;
+                    div.addEventListener('click', () => {
+                        document.querySelectorAll('.inventory-item').forEach(i => i.classList.remove('active'));
+                        div.classList.add('active');
+                        loadMonthDetails(item.month);
+                    });
+                    list.appendChild(div);
+                });
+                if (data.length > 0) list.firstChild.click();
+            } catch (err) { list.innerHTML = '<p style="color:red;">Failed to load inventory</p>'; }
+        }
+
+        async function loadMonthDetails(month) {
+            document.getElementById('selected-month-badge').textContent = month;
+            const containers = {
+                prices: document.getElementById('prices-container'),
+                news: document.getElementById('news-container'),
+                takeaways: document.getElementById('takeaways-container')
+            };
+            Object.values(containers).forEach(c => c.innerHTML = '<p style="opacity:0.5;">Loading...</p>');
+            try {
+                const response = await fetch(`/api/details/${month}`);
+                const data = await response.json();
+
+                if (data.prices.length > 0) {
+                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Price</th><th>UOM</th><th>Region</th></tr></thead><tbody>';
+                    data.prices.forEach(p => { html += `<tr><td>${p.date}</td><td>${p.material}</td><td>${p.price}</td><td>${p.uom}</td><td>${p.region || '-'}</td></tr>`; });
+                    html += '</tbody></table>';
+                    containers.prices.innerHTML = html;
+                } else containers.prices.innerHTML = '<p style="opacity:0.5;">No price data available.</p>';
+
+                if (data.news.length > 0) {
+                    let html = '';
+                    data.news.forEach(n => {
+                        const tags = (n.materials || []).map(m => `<div class="card-tag">${m}</div>`).join(' ');
+                        html += `<div class="insight-card"><div style="margin-bottom:1rem;">${tags}</div><h3 style="margin:0 0 1rem 0;">${n.title}</h3><div style="display:flex; justify-content:space-between; font-size:0.8rem; opacity:0.6;"><span>${n.date}</span><span>${n.region || 'Global'}</span></div></div>`;
+                    });
+                    containers.news.innerHTML = html;
+                } else containers.news.innerHTML = '<p style="opacity:0.5;">No news events found.</p>';
+
+                if (data.takeaways.length > 0) {
+                    let html = '';
+                    data.takeaways.forEach(t => {
+                        const tags = (t.materials || []).map(m => `<div class="card-tag" style="margin-right:5px;">${m}</div>`).join('');
+                        html += `<div class="takeaway-item"><div style="margin-bottom:0.5rem;">${tags}</div><div style="font-size:1.1rem; line-height:1.6;">${t.content}</div><div style="margin-top:1rem; font-size:0.8rem; opacity:0.4;">Report Date: ${t.date}</div></div>`;
+                    });
+                    containers.takeaways.innerHTML = html;
+                } else containers.takeaways.innerHTML = '<p style="opacity:0.5;">No takeaways extracted.</p>';
+            } catch (err) { Object.values(containers).forEach(c => c.innerHTML = '<p style="color:red;">Error loading details</p>'); }
         }
     </script>
 </body>

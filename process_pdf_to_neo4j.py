@@ -22,6 +22,17 @@ URI = "bolt://44.202.98.128:7687"
 AUTH = ("neo4j", "neo4j@123")
 REPORTS_DIR = "reports"
 MATERIAL_NAME = "Glycerine"
+INGESTION_LOG = "ingestion_log.json"
+
+def load_log():
+    if os.path.exists(INGESTION_LOG):
+        with open(INGESTION_LOG, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_log(log):
+    with open(INGESTION_LOG, 'w') as f:
+        json.dump(log, f, indent=2)
 
 def get_hash(text):
     return hashlib.md5(str(text).encode()).hexdigest()
@@ -118,16 +129,25 @@ def ingest_to_neo4j(takeaways, news, prices, pdf_name):
                          date=date, region=n.get("region", ""), 
                          url=report_url, uri=uid)
 
-                # 4. Ingest Prices as ns0__PriceEvent (renamed from PriceObservation)
-                # Validation requirement: must have price_date and chemical_id_ref
+                # 4. Ingest Prices as ns0__PriceEvent
                 for p in prices:
+                    # Use specific material name if available, fallback to default
+                    spec_material = p.get("extracted_material_name", MATERIAL_NAME)
+                    spec_uri = f"http://www.apollo-procurement.org/ontology#{spec_material.replace(' ', '_')}"
+                    
+                    # Ensure specific Material node exists
+                    session.run("""
+                    MERGE (sm:ns0__MaterialRequiredForProduction {uri: $uri})
+                    SET sm.rdfs__label = $name, sm:Resource
+                    """, uri=spec_uri, name=spec_material)
+
                     price = str(p.get("price", 0.0))
                     price_date = normalize_date(p.get("date", ""))
                     uom = p.get("uom", "")
-                    uid = f"price_event_{get_hash(price + price_date + uom)}"
+                    uid = f"price_event_{get_hash(price + price_date + uom + spec_material)}"
                     
                     session.run("""
-                    MATCH (m:ns0__MaterialRequiredForProduction {uri: $m_uri})
+                    MATCH (sm:ns0__MaterialRequiredForProduction {uri: $m_uri})
                     MERGE (pe:ns0__PriceEvent:Resource {uri: $uri})
                     SET pe.ns0__price = $price, 
                         pe.ns0__price_date = $price_date, 
@@ -136,13 +156,28 @@ def ingest_to_neo4j(takeaways, news, prices, pdf_name):
                         pe.ns0__region = $region, 
                         pe.ns0__price_type = $price_type,
                         pe.rdfs__label = 'Price Event ' + $price_date
-                    MERGE (pe)-[:ns0__OBSERVED_FOR]->(m)
-                    """, m_uri=material_uri, price=price, 
+                    MERGE (pe)-[:ns0__OBSERVED_FOR]->(sm)
+                    """, m_uri=spec_uri, price=price, 
                          price_date=price_date, uom=uom, 
                          region=p.get("region", ""), price_type=p.get("price_type", ""), uri=uid)
                 
     except Exception as e:
         logger.error(f"Failed to ingest data for {pdf_name}: {e}")
+
+def process_single_pdf(pdf_file, pdf_path):
+    try:
+        text = extract_text_from_pdf(pdf_path)
+        logger.info(f"Processing {pdf_file}...")
+        
+        takeaways = generate_takeaways(text, MATERIAL_NAME)
+        news = news_agent(text, MATERIAL_NAME, pdf_file) 
+        prices = price_by_date_agent(text, MATERIAL_NAME)
+        
+        ingest_to_neo4j(takeaways, news, prices, pdf_file)
+        return True
+    except Exception as e:
+        logger.error(f"Error processing {pdf_file}: {e}")
+        return False
 
 def process_all_pdfs():
     if not os.path.exists(REPORTS_DIR):
@@ -152,16 +187,24 @@ def process_all_pdfs():
     pdf_files = [f for f in os.listdir(REPORTS_DIR) if f.lower().endswith('.pdf')]
     logger.info(f"Found {len(pdf_files)} PDF reports.")
     
+    log = load_log()
+    processed_count = 0
+    
     for pdf_file in pdf_files:
+        if pdf_file in log:
+            logger.info(f"Skipping {pdf_file} (already processed).")
+            continue
+            
         pdf_path = os.path.join(REPORTS_DIR, pdf_file)
-        text = extract_text_from_pdf(pdf_path)
-        
-        logger.info(f"Processing {pdf_file}...")
-        takeaways = generate_takeaways(text, MATERIAL_NAME)
-        news = news_agent(text, MATERIAL_NAME, pdf_file) 
-        prices = price_by_date_agent(text, MATERIAL_NAME)
-        
-        ingest_to_neo4j(takeaways, news, prices, pdf_file)
+        if process_single_pdf(pdf_file, pdf_path):
+            log[pdf_file] = {
+                "timestamp": os.path.getmtime(pdf_path),
+                "status": "success"
+            }
+            save_log(log)
+            processed_count += 1
+    
+    logger.info(f"ETL Cycle complete. Processed {processed_count} new reports.")
 
 if __name__ == "__main__":
     process_all_pdfs()

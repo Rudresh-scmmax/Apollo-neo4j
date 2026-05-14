@@ -188,7 +188,7 @@ def generate_cypher(question, schema, material_context="Glycerine"):
     LLM Agent that generates a Cypher query based on the database schema.
     """
     system_msg = f"""
-    You are a Neo4j Cypher Expert. Generate a Cypher query to answer the user's question.
+    You are a Neo4j Cypher Expert. Your task is to generate a Cypher query to answer the user's question.
     
     SCHEMA:
     {schema}
@@ -202,28 +202,25 @@ def generate_cypher(question, schema, material_context="Glycerine"):
     - Findings/Takeaways: (a:ns0__Assertion) linked to material via [:ns0__RELATES_TO].
       Properties: a.ns0__content, a.ns0__date, a.ns0__publication
 
-    CRITICAL RULES:
-    1. NEVER put a 'WHERE' clause immediately after a 'RETURN'.
+    STRICT RULES:
+    1. OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER.
     2. Use 'ns0__' for ALL properties listed above.
-    3. DATE FORMAT: Always convert user dates to 'YYYY-MM-DD'. In the query, use 'CONTAINS' for the date to be safe.
-       GOOD: WHERE pe.ns0__price_date CONTAINS '2023-11-16'
-    4. For 'price trends', always use ns0__PriceEvent and ns0__price_date.
-    
-    EXAMPLE - Price of Glycerine on a date:
-    MATCH (m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label CONTAINS 'Glycerine'
-    MATCH (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m)
-    WHERE pe.ns0__price_date CONTAINS '2023-11-16'
-    RETURN pe.ns0__price, pe.ns0__uom, m.rdfs__label
-
-    EXAMPLE - Market Disruptions (Vector Search):
-    CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node AS n, score
-    MATCH (n)-[:ns0__RELATES_TO]->(m:ns0__MaterialRequiredForProduction)
-    RETURN n.ns0__content, n.ns0__date, m.rdfs__label
-    ORDER BY n.ns0__date DESC
+    3. RELATIONSHIP DIRECTION: (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m:ns0__MaterialRequiredForProduction). ALWAYS.
+    4. DATE FORMAT: Always convert user dates to 'YYYY-MM-DD'. If the year is missing, assume '2025'. In the query, use 'CONTAINS' for the date to be safe.
+       Example: WHERE pe.ns0__price_date CONTAINS '2025-04-24'
+    5. Material Match: Use WHERE m.rdfs__label CONTAINS 'MaterialName' to be flexible.
+    6. Vector Index: Use CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node, score
     """
     
     # We use a lower temperature for code generation
-    cypher = invoke_bedrock_chat(system_msg, question, temperature=0.0)
-    # Clean up any markdown blocks if the LLM adds them
-    cypher = cypher.replace("```cypher", "").replace("```", "").strip()
+    response = invoke_bedrock_chat(system_msg, question, temperature=0.0)
+    
+    # Clean up markdown if present
+    cypher = response.replace("```cypher", "").replace("```", "").strip()
+    
+    # Extraction: If there is still preamble, try to find the first MATCH, CALL, or WITH
+    match = re.search(r"(MATCH|CALL|WITH|CREATE|MERGE)[\s\S]*", cypher, re.I)
+    if match:
+        cypher = match.group().strip()
+        
     return cypher

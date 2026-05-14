@@ -5,3 +5,4 @@ neo4j
 python-multipart
 jinja2
 aiofiles
+pymupdf

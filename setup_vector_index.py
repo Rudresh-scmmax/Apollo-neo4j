@@ -17,7 +17,11 @@ def setup_vector_index():
         with driver.session() as session:
             # 1. Fetch assertions that need embeddings
             logger.info("Fetching assertions from Neo4j...")
-            result = session.run("MATCH (a:ns0__Assertion) RETURN a.uri as uri, a.ns0__content as content")
+            result = session.run("""
+                MATCH (a:ns0__Assertion) 
+                WHERE a.embedding IS NULL 
+                RETURN a.uri as uri, a.ns0__content as content
+            """)
             assertions = [record for record in result]
             logger.info(f"Found {len(assertions)} assertions to index.")
 
