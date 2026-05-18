@@ -88,27 +88,39 @@ def ingest_to_neo4j(takeaways, news, prices, pdf_name):
         with GraphDatabase.driver(URI, auth=AUTH) as driver:
             with driver.session() as session:
                 
-                # 1. Get or Create Material URI
-                material_uri = f"http://www.apollo-procurement.org/ontology#{MATERIAL_NAME.replace(' ', '_')}"
+                # 1. Resolve Material Nodes
+                # We search for any node with the label that matches the material name
+                material_res = session.run("""
+                MATCH (m:ns0__MaterialRequiredForProduction)
+                WHERE m.rdfs__label =~ '(?i)' + $material_name
+                RETURN m.uri AS uri
+                """, material_name=MATERIAL_NAME)
+                material_uris = [r['uri'] for r in material_res]
                 
-                # Ensure Material node exists
-                session.run("""
-                MERGE (m:ns0__MaterialRequiredForProduction {uri: $uri})
-                SET m.rdfs__label = $material_name, m:Resource
-                """, material_name=MATERIAL_NAME, uri=material_uri)
+                if not material_uris:
+                    # Fallback: create a new one only if none exist
+                    material_uri = f"http://www.apollo-procurement.org/ontology#{MATERIAL_NAME.replace(' ', '_')}"
+                    session.run("""
+                    MERGE (m:ns0__MaterialRequiredForProduction {uri: $uri})
+                    SET m.rdfs__label = $material_name, m:Resource
+                    """, material_name=MATERIAL_NAME, uri=material_uri)
+                    material_uris = [material_uri]
+                
+                logger.info(f"Resolved material to {len(material_uris)} URIs: {material_uris}")
                 
                 # 2. Ingest Takeaways as ns0__Assertion
                 for t in takeaway_list:
                     uid = f"assertion_{get_hash(t + published_date)}"
                     session.run("""
-                    MATCH (m:ns0__MaterialRequiredForProduction {uri: $m_uri})
+                    UNWIND $m_uris AS m_uri
+                    MATCH (m:ns0__MaterialRequiredForProduction {uri: m_uri})
                     MERGE (a:ns0__Assertion:Resource {uri: $uri})
                     SET a.ns0__content = $content, 
                         a.ns0__publication = $publication, 
                         a.ns0__date = $date,
                         a.rdfs__label = 'Assertion'
-                    MERGE (a)-[:ns0__RELATES_TO]->(m)
-                    """, m_uri=material_uri, content=t, publication=publication, 
+                    MERGE (a)-[:ns0__isAbout]->(m)
+                    """, m_uris=material_uris, content=t, publication=publication, 
                          date=published_date, uri=uid)
 
                 # 3. Ingest News as ns0__MarketEvent
@@ -117,47 +129,54 @@ def ingest_to_neo4j(takeaways, news, prices, pdf_name):
                     date = normalize_date(n.get("published_date", ""))
                     uid = f"news_{get_hash(title + date)}"
                     session.run("""
-                    MATCH (m:ns0__MaterialRequiredForProduction {uri: $m_uri})
+                    UNWIND $m_uris AS m_uri
+                    MATCH (m:ns0__MaterialRequiredForProduction {uri: m_uri})
                     MERGE (e:ns0__MarketEvent:Resource {uri: $uri})
                     SET e.ns0__title = $title, 
                         e.ns0__date = $date, 
                         e.ns0__region = $region,
                         e.ns0__url = $url,
                         e.rdfs__label = $title
-                    MERGE (e)-[:ns0__IMPACTS]->(m)
-                    """, m_uri=material_uri, title=title, 
+                    MERGE (e)-[:ns0__affectsMaterial]->(m)
+                    """, m_uris=material_uris, title=title, 
                          date=date, region=n.get("region", ""), 
                          url=report_url, uri=uid)
 
-                # 4. Ingest Prices as ns0__PriceEvent
+                # 4. Ingest Prices as ns0__BenchmarkPrice
                 for p in prices:
                     # Use specific material name if available, fallback to default
                     spec_material = p.get("extracted_material_name", MATERIAL_NAME)
                     spec_uri = f"http://www.apollo-procurement.org/ontology#{spec_material.replace(' ', '_')}"
                     
-                    # Ensure specific Material node exists
-                    session.run("""
-                    MERGE (sm:ns0__MaterialRequiredForProduction {uri: $uri})
-                    SET sm.rdfs__label = $name, sm:Resource
-                    """, uri=spec_uri, name=spec_material)
+                    # Resolve specific materials for pricing
+                    spec_res = session.run("""
+                    MATCH (sm:ns0__MaterialRequiredForProduction)
+                    WHERE sm.rdfs__label =~ '(?i)' + $spec_name
+                    RETURN sm.uri AS uri
+                    """, spec_name=spec_material)
+                    spec_uris = [r['uri'] for r in spec_res]
+                    if not spec_uris:
+                        spec_uris = [spec_uri] # Fallback to our generated URI
 
                     price = str(p.get("price", 0.0))
                     price_date = normalize_date(p.get("date", ""))
                     uom = p.get("uom", "")
                     uid = f"price_event_{get_hash(price + price_date + uom + spec_material)}"
-                    
+
                     session.run("""
-                    MATCH (sm:ns0__MaterialRequiredForProduction {uri: $m_uri})
-                    MERGE (pe:ns0__PriceEvent:Resource {uri: $uri})
+                    UNWIND $sm_uris AS sm_uri
+                    MERGE (sm:ns0__MaterialRequiredForProduction {uri: sm_uri})
+                    SET sm.rdfs__label = $name, sm:Resource
+                    WITH sm
+                    MERGE (pe:ns0__BenchmarkPrice:Resource {uri: $uri})
                     SET pe.ns0__price = $price, 
                         pe.ns0__price_date = $price_date, 
-                        pe.ns0__chemical_id_ref = $m_uri,
                         pe.ns0__uom = $uom, 
                         pe.ns0__region = $region, 
                         pe.ns0__price_type = $price_type,
                         pe.rdfs__label = 'Price Event ' + $price_date
-                    MERGE (pe)-[:ns0__OBSERVED_FOR]->(sm)
-                    """, m_uri=spec_uri, price=price, 
+                    MERGE (pe)-[:ns0__observedFor]->(sm)
+                    """, sm_uris=spec_uris, name=spec_material, price=price, 
                          price_date=price_date, uom=uom, 
                          region=p.get("region", ""), price_type=p.get("price_type", ""), uri=uid)
                 

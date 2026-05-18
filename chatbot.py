@@ -5,13 +5,14 @@ import logging
 import re
 from neo4j import GraphDatabase
 from llm_module import invoke_bedrock_text
+from intent_system import IntentSystem
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Local Neo4j configuration
-URI = "bolt://localhost:7687"
-AUTH = ("neo4j", "Apollo@123")
+# Remote Neo4j configuration
+URI = "bolt://44.202.98.128:7687"
+AUTH = ("neo4j", "neo4j@123")
 
 def get_graph_schema(driver):
     """
@@ -63,12 +64,17 @@ def get_graph_schema(driver):
             "date_range": {"min": min_date, "max": max_date}
         }
 
-def get_cypher_from_question(question, schema):
+def get_cypher_from_question(question, schema, intent=None):
     """
-    Dynamic Cypher Generation using discovered schema context.
+    Dynamic Cypher Generation using discovered schema context and classified intent.
     """
+    intent_context = ""
+    if intent:
+        intent_context = f"\nCLASSIFIED INTENT:\n{json.dumps(intent, indent=2)}\n"
+
     system_msg = f"""
     You are a Neo4j Cypher expert. Translate the user's question into a query using the DISCOVERED SCHEMA below.
+    {intent_context}
     
     SCHEMA CONTEXT (Labels & Properties):
     {json.dumps(schema['label_context'], indent=2)}
@@ -84,13 +90,26 @@ def get_cypher_from_question(question, schema):
     1. Only use labels, properties, and relationships from the schema.
     2. Property names often use prefixes like 'ns0__' or 'rdfs__'. Use them exactly.
     3. Use 'rdfs__label' for human-readable matching.
-    4. For 'latest', 'current', or 'recent', filter by date: {schema['date_range']['max']}.
-    5. Match material names using `n.rdfs__label =~ '(?i)material_name'`.
-    6. For "takeaways", "findings", or "reports", look for `ns0__Assertion` nodes.
-    7. Use `DISTINCT` to avoid duplicate results.
-    8. Use simple aliases (e.g., `RETURN n.ns0__content AS takeaway`). DO NOT RETURN MAPS like `{{a:b}}`.
-    9. Avoid Cartesian products. If matching multiple items, use `UNION`.
-    10. Return ONLY a JSON object: {{"query": "MATCH ... RETURN ..."}}
+    4. DYNAMIC MATERIAL MATCH: Use multiple regex matches to ensure all keywords from the user's material name are present, regardless of order.
+       Example: `m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*'`
+    5. REGION/DATE: Prioritize using properties on the nodes (e.g., `p.ns0__region`, `p.ns0__price_date`).
+    
+    DATA DICTIONARY & RELATIONSHIPS:
+    - Pricing: (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)
+      * Properties: p.ns0__price, p.ns0__price_date, p.ns0__uom, p.ns0__region, p.ns0__price_type
+    - News: (e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m:ns0__MaterialRequiredForProduction)
+      * Properties: e.ns0__title, e.ns0__date, e.ns0__region
+    - Takeaways: (a:ns0__Assertion)-[:ns0__isAbout]->(m:ns0__MaterialRequiredForProduction)
+      * Properties: a.ns0__content, a.ns0__date, a.ns0__publication
+    
+    STRICT RULES:
+    1. For PRICING, ALWAYS use `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)`.
+    2. For NEWS, ALWAYS use `(e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m)`.
+    3. For TAKEAWAYS, ALWAYS use `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`.
+    4. If using `ORDER BY`, the variable MUST be in the `RETURN` clause.
+    5. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g., `p.ns0__price_date`, `p.ns0__price`) are NOT NULL. 
+    6. MANDATORY OUTPUT FORMAT: You MUST return a JSON object with a single key "query". DO NOT return raw Cypher.
+       Example: {{"query": "MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m) WHERE m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1"}}
     """
 
     
@@ -105,14 +124,14 @@ def get_cypher_from_question(question, schema):
 
 def summarize_answer(question, data):
     system_msg = """
-    You are a professional supply chain analyst. Your goal is to provide a clear, professional summary.
+    You are a professional supply chain analyst. Your goal is to provide a clear, professional summary based EXCLUSIVELY on the provided Graph Data.
     
     INSTRUCTIONS:
-    - Synthesize the provided graph data into a natural language response.
+    - If 'Graph Data' contains pricing, news, or assertions, you MUST summarize them.
     - Mention specific price ranges, dates, and regions found in the data.
-    - If the data contains assertions or takeaways, group them logically.
+    - If data is present in the context, do NOT say you couldn't find matches. 
     - You MUST return your final response as a JSON object with a single key "answer".
-    - Example: {"answer": "The latest price for Glycerine is..."}
+    - Example: {"answer": "Based on market data, the latest price for Glycerine Refined is..."}
     """
     # Limit and deduplicate
     unique_data = []
@@ -168,8 +187,14 @@ def chatbot():
                     print("[+] Schema updated.")
                     continue
                     
-                print("[*] Processing question...")
-                cypher = get_cypher_from_question(question, schema)
+                print("[*] Classifying intent...")
+                intent_system = IntentSystem()
+                intent_obj = intent_system.process_question(question)
+                logger.info(f"Classified Intent Object: {json.dumps(intent_obj)}")
+                
+                print("[*] Generating query based on intent...")
+                # Pass the intent object to help with Cypher generation
+                cypher = get_cypher_from_question(question, schema, intent_obj)
                 
                 if not cypher:
                     print("Bot: I'm sorry, I couldn't generate a valid query for that question.")

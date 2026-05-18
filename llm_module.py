@@ -195,21 +195,21 @@ def generate_cypher(question, schema, material_context="Glycerine"):
     
     DATA DICTIONARY:
     - Materials: (m:ns0__MaterialRequiredForProduction)
-    - Pricing: (pe:ns0__PriceEvent) linked to material via [:ns0__OBSERVED_FOR].
+    - Pricing: (pe:ns0__BenchmarkPrice) linked to material via [:ns0__observedFor].
       Properties: pe.ns0__price, pe.ns0__price_date, pe.ns0__uom, pe.ns0__region
-    - News/Disruptions: (me:ns0__MarketEvent) linked to material via [:ns0__IMPACTS].
+    - News/Disruptions: (me:ns0__MarketEvent) linked to material via [:ns0__affectsMaterial].
       Properties: me.ns0__title, me.ns0__date, me.ns0__region
-    - Findings/Takeaways: (a:ns0__Assertion) linked to material via [:ns0__RELATES_TO].
+    - Findings/Takeaways: (a:ns0__Assertion) linked to material via [:ns0__isAbout].
       Properties: a.ns0__content, a.ns0__date, a.ns0__publication
 
     STRICT RULES:
     1. OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER.
-    2. Use 'ns0__' for ALL properties listed above.
-    3. RELATIONSHIP DIRECTION: (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m:ns0__MaterialRequiredForProduction). ALWAYS.
-    4. DATE FORMAT: Always convert user dates to 'YYYY-MM-DD'. If the year is missing, assume '2025'. In the query, use 'CONTAINS' for the date to be safe.
-       Example: WHERE pe.ns0__price_date CONTAINS '2025-04-24'
-    5. Material Match: Use WHERE m.rdfs__label CONTAINS 'MaterialName' to be flexible.
-    6. Vector Index: Use CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node, score
+    2. DYNAMIC MATERIAL MATCH: Use multiple regex matches to ensure all keywords from the user's material name are present, regardless of order.
+       Example: `m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*'`
+    3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or current values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g., `pe.ns0__price_date`, `pe.ns0__price`) are NOT NULL.
+    4. RELATIONSHIP DIRECTION: `(pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`. ALWAYS.
+    5. Property prefixes: ALWAYS use `ns0__` or `rdfs__` as shown in the data dictionary.
+    6. Vector Index: Use `CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node, score`
     """
     
     # We use a lower temperature for code generation

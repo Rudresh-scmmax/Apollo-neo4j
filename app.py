@@ -88,7 +88,7 @@ def run_dynamic_query(question):
                     target_date = f"{y}-{m}-{d}"
                     print(f"Deep Scan Target Date: {target_date}")
                     recovery_cypher = f"""
-                        MATCH (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m) 
+                        MATCH (pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m) 
                         WHERE pe.ns0__price_date CONTAINS '{target_date}' 
                         RETURN pe.ns0__price as price, pe.ns0__price_date as date, pe.ns0__uom as uom, m.rdfs__label as material 
                         LIMIT 100
@@ -104,7 +104,7 @@ def run_dynamic_query(question):
             if not results:
                 fallback_cypher = """
                 CALL db.index.vector.queryNodes('assertion_index', 50, $embedding) YIELD node, score
-                OPTIONAL MATCH (node)-[:ns0__RELATES_TO]->(m)
+                OPTIONAL MATCH (node)-[:ns0__isAbout]->(m)
                 RETURN node.ns0__content as finding, node.ns0__date as date, m.rdfs__label as material, score
                 """
                 res = session.run(fallback_cypher, embedding=embedding)
@@ -126,11 +126,11 @@ async def get_inventory():
             # Query months and counts
             cypher = """
             MATCH (n:Resource)
-            WHERE n:ns0__PriceEvent OR n:ns0__MarketEvent OR n:ns0__Assertion
+            WHERE n:ns0__BenchmarkPrice OR n:ns0__MarketEvent OR n:ns0__Assertion
             WITH n, substring(coalesce(n.ns0__date, n.ns0__price_date), 0, 7) as month
             WHERE month IS NOT NULL
             RETURN month,
-                   count(DISTINCT CASE WHEN n:ns0__PriceEvent THEN n END) as prices,
+                   count(DISTINCT CASE WHEN n:ns0__BenchmarkPrice THEN n END) as prices,
                    count(DISTINCT CASE WHEN n:ns0__MarketEvent THEN n END) as news,
                    count(DISTINCT CASE WHEN n:ns0__Assertion THEN n END) as takeaways
             ORDER BY month DESC
@@ -147,7 +147,7 @@ async def get_details(month: str):
         with driver.session() as session:
             # Prices
             price_res = session.run("""
-                MATCH (pe:ns0__PriceEvent)-[:ns0__OBSERVED_FOR]->(m)
+                MATCH (pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)
                 WHERE pe.ns0__price_date CONTAINS $month
                 RETURN pe.ns0__price as price, pe.ns0__price_date as date, 
                        pe.ns0__uom as uom, pe.ns0__region as region, 
@@ -157,7 +157,7 @@ async def get_details(month: str):
             
             # News
             news_res = session.run("""
-                MATCH (me:ns0__MarketEvent)-[:ns0__IMPACTS]->(m)
+                MATCH (me:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m)
                 WHERE me.ns0__date CONTAINS $month
                 RETURN me.ns0__title as title, me.ns0__date as date, me.ns0__region as region, 
                        collect(DISTINCT m.rdfs__label) as materials
@@ -166,7 +166,7 @@ async def get_details(month: str):
             
             # Takeaways
             takeaway_res = session.run("""
-                MATCH (a:ns0__Assertion)-[:ns0__RELATES_TO]->(m)
+                MATCH (a:ns0__Assertion)-[:ns0__isAbout]->(m)
                 WHERE a.ns0__date CONTAINS $month
                 RETURN a.ns0__content as content, a.ns0__date as date, 
                        collect(DISTINCT m.rdfs__label) as materials
