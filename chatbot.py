@@ -86,30 +86,15 @@ def get_cypher_from_question(question, schema, intent=None):
     Earliest data: {schema['date_range']['min']}
     Latest data: {schema['date_range']['max']}
     
-    RULES:
-    1. Only use labels, properties, and relationships from the schema.
-    2. Property names often use prefixes like 'ns0__' or 'rdfs__'. Use them exactly.
-    3. Use 'rdfs__label' for human-readable matching.
-    4. DYNAMIC MATERIAL MATCH: Use multiple regex matches to ensure all keywords from the user's material name are present, regardless of order.
-       Example: `m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*'`
-    5. REGION/DATE: Prioritize using properties on the nodes (e.g., `p.ns0__region`, `p.ns0__price_date`).
-    
-    DATA DICTIONARY & RELATIONSHIPS:
-    - Pricing: (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)
-      * Properties: p.ns0__price, p.ns0__price_date, p.ns0__uom, p.ns0__region, p.ns0__price_type
-    - News: (e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m:ns0__MaterialRequiredForProduction)
-      * Properties: e.ns0__title, e.ns0__date, e.ns0__region
-    - Takeaways: (a:ns0__Assertion)-[:ns0__isAbout]->(m:ns0__MaterialRequiredForProduction)
-      * Properties: a.ns0__content, a.ns0__date, a.ns0__publication
-    
     STRICT RULES:
-    1. For PRICING, ALWAYS use `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)`.
-    2. For NEWS, ALWAYS use `(e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m)`.
-    3. For TAKEAWAYS, ALWAYS use `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`.
-    4. If using `ORDER BY`, the variable MUST be in the `RETURN` clause.
-    5. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g., `p.ns0__price_date`, `p.ns0__price`) are NOT NULL. 
-    6. MANDATORY OUTPUT FORMAT: You MUST return a JSON object with a single key "query". DO NOT return raw Cypher.
-       Example: {{"query": "MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m) WHERE m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1"}}
+    1. Only use labels, properties, and relationships explicitly listed in the SCHEMA CONTEXT and VALID GRAPH PATHS above.
+    2. DYNAMIC MATERIAL MATCH: 
+       - If the user provides a numeric ID, match EXACTLY using `m.ns0__material_id = 'THE_ID'`.
+       - If the user provides a text name, use regex: `m.rdfs__label =~ '(?i).*THE_NAME.*'`.
+       - ALWAYS attach properties to the correct node: Prices/Dates belong to `ns0__BenchmarkPrice` or `ns0__TransactionPrice`. Material ID/Name belongs to `ns0__MaterialRequiredForProduction`.
+    3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties are NOT NULL. 
+    4. MANDATORY OUTPUT FORMAT: You MUST return a JSON object with a single key "query". DO NOT return raw Cypher.
+       Example: {{"query": "MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label =~ '(?i).*THE_MATERIAL.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1"}}
     """
 
     

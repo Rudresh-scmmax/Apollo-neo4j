@@ -9,6 +9,8 @@ import json
 import os
 import shutil
 import etl_pipeline
+from schema_utils import get_graph_schema
+from intent_system import IntentSystem
 
 app = FastAPI()
 
@@ -23,33 +25,22 @@ app.add_middleware(
 NEO4J_URI = "bolt://44.202.98.128:7687"
 NEO4J_AUTH = ("neo4j", "neo4j@123")
 
-def get_db_schema():
-    """
-    Fetches the current database schema labels and relationships.
-    """
-    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
-    schema = {"labels": [], "relationships": []}
-    try:
-        with driver.session() as session:
-            labels_res = session.run("CALL db.labels()")
-            schema["labels"] = [r[0] for r in labels_res]
-            
-            rels_res = session.run("CALL db.relationshipTypes()")
-            schema["relationships"] = [r[0] for r in rels_res]
-    finally:
-        driver.close()
-    return json.dumps(schema)
-
 def run_dynamic_query(question):
-    # 1. Get Schema
-    schema = get_db_schema()
+    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     
-    # 2. Generate Cypher
-    cypher = generate_cypher(question, schema)
+    # 1. Get Schema
+    schema = get_graph_schema(driver)
+    
+    # 2. Get Intent
+    print("[*] Classifying intent...")
+    intent_system = IntentSystem()
+    intent_obj = intent_system.process_question(question)
+    
+    # 3. Generate Cypher
+    cypher = generate_cypher(question, schema, intent=intent_obj)
     print(f"GENERATED CYPHER: {cypher}")
     
-    # 3. Execute
-    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+    # 4. Execute
     results = []
     try:
         with driver.session() as session:

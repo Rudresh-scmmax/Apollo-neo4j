@@ -46,6 +46,8 @@ def deploy():
     files_to_upload = [
         ("app.py", "/home/ubuntu/apollo/app.py"),
         ("llm_module.py", "/home/ubuntu/apollo/llm_module.py"),
+        ("schema_utils.py", "/home/ubuntu/apollo/schema_utils.py"),
+        ("intent_system.py", "/home/ubuntu/apollo/intent_system.py"),
         ("etl_pipeline.py", "/home/ubuntu/apollo/etl_pipeline.py"),
         ("import_ontology.py", "/home/ubuntu/apollo/import_ontology.py"),
         ("process_pdf_to_neo4j.py", "/home/ubuntu/apollo/process_pdf_to_neo4j.py"),

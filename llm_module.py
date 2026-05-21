@@ -183,33 +183,41 @@ def price_by_date_agent(extracted_text, material):
         return price_list
     return []
 
-def generate_cypher(question, schema, material_context="Glycerine"):
+def generate_cypher(question, schema, intent=None):
     """
     LLM Agent that generates a Cypher query based on the database schema.
     """
+    intent_context = ""
+    if intent:
+        intent_context = f"\nCLASSIFIED INTENT:\n{json.dumps(intent, indent=2)}\n"
+
     system_msg = f"""
     You are a Neo4j Cypher Expert. Your task is to generate a Cypher query to answer the user's question.
+    {intent_context}
     
-    SCHEMA:
-    {schema}
+    SCHEMA CONTEXT (Labels & Properties):
+    {json.dumps(schema.get('label_context', {}), indent=2)}
     
-    DATA DICTIONARY:
-    - Materials: (m:ns0__MaterialRequiredForProduction)
-    - Pricing: (pe:ns0__BenchmarkPrice) linked to material via [:ns0__observedFor].
-      Properties: pe.ns0__price, pe.ns0__price_date, pe.ns0__uom, pe.ns0__region
-    - News/Disruptions: (me:ns0__MarketEvent) linked to material via [:ns0__affectsMaterial].
-      Properties: me.ns0__title, me.ns0__date, me.ns0__region
-    - Findings/Takeaways: (a:ns0__Assertion) linked to material via [:ns0__isAbout].
-      Properties: a.ns0__content, a.ns0__date, a.ns0__publication
+    VALID GRAPH PATHS:
+    {schema.get('structure', [])}
+    
+    TEMPORAL CONTEXT:
+    Earliest data: {schema.get('date_range', {}).get('min', 'Unknown')}
+    Latest data: {schema.get('date_range', {}).get('max', 'Unknown')}
 
     STRICT RULES:
-    1. OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER.
-    2. DYNAMIC MATERIAL MATCH: Use multiple regex matches to ensure all keywords from the user's material name are present, regardless of order.
-       Example: `m.rdfs__label =~ '(?i).*glycerine.*' AND m.rdfs__label =~ '(?i).*refined.*'`
-    3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or current values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g., `pe.ns0__price_date`, `pe.ns0__price`) are NOT NULL.
-    4. RELATIONSHIP DIRECTION: `(pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`. ALWAYS.
-    5. Property prefixes: ALWAYS use `ns0__` or `rdfs__` as shown in the data dictionary.
-    6. Vector Index: Use `CALL db.index.vector.queryNodes('assertion_index', 10, $embedding) YIELD node, score`
+    1. DYNAMIC MATERIAL MATCH: 
+       - If the user provides a numeric ID, match EXACTLY using `m.ns0__material_id = 'THE_ID'`.
+       - If the user provides a text name, use regex: `m.rdfs__label =~ '(?i).*THE_NAME.*'`.
+       - CRITICAL: Regex (`=~`) MUST be placed in the `WHERE` clause, NEVER inside the node brackets `{{}}`.
+       - ALWAYS attach properties to the correct node: Prices/Dates belong to `ns0__BenchmarkPrice` or `ns0__TransactionPrice`. Material ID/Name belongs to `ns0__MaterialRequiredForProduction`.
+    2. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties are NOT NULL.
+    3. DATA DICTIONARY:
+       - Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`
+       - News: `(e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m:ns0__MaterialRequiredForProduction)`
+       - Transaction: `(t:ns0__TransactionPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`
+    4. OUTPUT FORMAT: OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER. DO NOT format as JSON.
+       Example Query: MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label =~ '(?i).*THE_MATERIAL.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1
     """
     
     # We use a lower temperature for code generation
@@ -223,4 +231,48 @@ def generate_cypher(question, schema, material_context="Glycerine"):
     if match:
         cypher = match.group().strip()
         
+    cypher = fix_cypher_syntax(cypher)
     return cypher
+
+def fix_cypher_syntax(cypher: str) -> str:
+    """
+    Self-healing Cypher syntax parser. Automatically corrects illegal LLM regex
+    placements inside node brackets (e.g. {rdfs__label =~ '...'}) and moves them
+    into valid WHERE clauses.
+    """
+    # Pattern 1: (var:Label {prop =~ 'regex'})
+    pattern = r"\((\w+):([\w_]+)\s*\{\s*([\w_]+)\s*=~\s*('[^']+'|\"[^\"]+\")\s*\}\)"
+    matches = re.findall(pattern, cypher)
+    if matches:
+        for var, label, prop, val in matches:
+            brackets_str = f"{{{prop} =~ {val}}}"
+            cypher = cypher.replace(brackets_str, "")
+            if "WHERE" in cypher.upper():
+                cypher = re.sub(r"(\bwhere\b)", f"WHERE {var}.{prop} =~ {val} AND", cypher, flags=re.IGNORECASE, count=1)
+            else:
+                kw_match = re.search(r"(\bwith\b|\breturn\b)", cypher, re.IGNORECASE)
+                if kw_match:
+                    idx = kw_match.start()
+                    cypher = cypher[:idx] + f"WHERE {var}.{prop} =~ {val} \n" + cypher[idx:]
+                else:
+                    cypher += f"\nWHERE {var}.{prop} =~ {val}"
+                    
+    # Pattern 2: (var:Label {prop: =~ 'regex'})
+    pattern_colon = r"\((\w+):([\w_]+)\s*\{\s*([\w_]+)\s*:\s*=~\s*('[^']+'|\"[^\"]+\")\s*\}\)"
+    matches_colon = re.findall(pattern_colon, cypher)
+    if matches_colon:
+        for var, label, prop, val in matches_colon:
+            brackets_str = f"{{{prop}: =~ {val}}}"
+            cypher = cypher.replace(brackets_str, "")
+            if "WHERE" in cypher.upper():
+                cypher = re.sub(r"(\bwhere\b)", f"WHERE {var}.{prop} =~ {val} AND", cypher, flags=re.IGNORECASE, count=1)
+            else:
+                kw_match = re.search(r"(\bwith\b|\breturn\b)", cypher, re.IGNORECASE)
+                if kw_match:
+                    idx = kw_match.start()
+                    cypher = cypher[:idx] + f"WHERE {var}.{prop} =~ {val} \n" + cypher[idx:]
+                else:
+                    cypher += f"\nWHERE {var}.{prop} =~ {val}"
+                    
+    return cypher
+
