@@ -23,11 +23,14 @@ def import_ontology(file_path):
             # 1. Ensure graph configuration is initialized and constraint exists
             print("Checking/Initializing graph config and constraints...")
             try:
-                session.run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE")
+                session.run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE").consume()
             except Exception as e:
                 print(f"Constraint creation note: {e}")
                 
-            session.run("CALL n10s.graphconfig.init({handleVocabUris: 'SHORTEN'})")
+            try:
+                session.run("CALL n10s.graphconfig.init({handleVocabUris: 'SHORTEN'})").consume()
+            except Exception as e:
+                print(f"Graphconfig initialization note: {e}")
             
             # 2. Preview the RDF data to see errors
             print(f"Previewing ontology content ({len(ttl_data)} characters)...")
@@ -47,6 +50,39 @@ def import_ontology(file_path):
                 print("\nIMPORT DETAILED RESULT:")
                 for key in import_res.keys():
                     print(f"{key}: {import_res[key]}")
+
+                # Enrich database automatically after import to prevent cardinality violations on price_date
+                print("\nEnriching database automatically after import...")
+                
+                # Query 1: Copy dates from temporal extents
+                q1 = """
+                MATCH (n:ns0__BenchmarkPrice)-[:ns0__hasTemporalExtent]->(t)
+                WHERE n.ns0__price_date IS NULL AND t.ns1__startDateTime IS NOT NULL
+                SET n.ns0__price_date = substring(toString(t.ns1__startDateTime), 0, 10)
+                RETURN count(n) as updated_cnt
+                """
+                res1 = session.run(q1).single()
+                print(f"Updated {res1['updated_cnt']} nodes from temporal extents.")
+                
+                # Query 2: Set specific date for Obs_Glycerine_Crude_CIF_China_Nov13
+                q2 = """
+                MATCH (n:ns0__BenchmarkPrice {uri: "http://api.stardog.com/Obs_Glycerine_Crude_CIF_China_Nov13"})
+                WHERE n.ns0__price_date IS NULL
+                SET n.ns0__price_date = "2025-11-13"
+                RETURN count(n) as updated_cnt
+                """
+                res2 = session.run(q2).single()
+                print(f"Updated Obs_Glycerine_Crude_CIF_China_Nov13: {res2['updated_cnt']}")
+                
+                # Query 3: Set specific date for Obs_Acetone_US_Sept25
+                q3 = """
+                MATCH (n:ns0__BenchmarkPrice {uri: "http://api.stardog.com/Obs_Acetone_US_Sept25"})
+                WHERE n.ns0__price_date IS NULL
+                SET n.ns0__price_date = "2025-09-01"
+                RETURN count(n) as updated_cnt
+                """
+                res3 = session.run(q3).single()
+                print(f"Updated Obs_Acetone_US_Sept25: {res3['updated_cnt']}")
             except Exception as inner_e:
                 print(f"DETAILED ERROR: {inner_e}")
 

@@ -96,7 +96,9 @@ def run_dynamic_query(question):
                 fallback_cypher = """
                 CALL db.index.vector.queryNodes('assertion_index', 50, $embedding) YIELD node, score
                 OPTIONAL MATCH (node)-[:ns0__isAbout]->(m)
-                RETURN node.ns0__content as finding, node.ns0__date as date, m.rdfs__label as material, score
+                RETURN coalesce(node.ns0__content, node.ns0__snippetEvidence) as finding, 
+                       coalesce(node.ns0__date, toString(node.ns0__assertionMadeAt)) as date, 
+                       m.rdfs__label as material, score
                 """
                 res = session.run(fallback_cypher, embedding=embedding)
                 for record in res:
@@ -118,7 +120,7 @@ async def get_inventory():
             cypher = """
             MATCH (n:Resource)
             WHERE n:ns0__BenchmarkPrice OR n:ns0__MarketEvent OR n:ns0__Assertion
-            WITH n, substring(coalesce(n.ns0__date, n.ns0__price_date), 0, 7) as month
+            WITH n, substring(coalesce(n.ns0__date, n.ns0__price_date, toString(n.ns0__assertionMadeAt)), 0, 7) as month
             WHERE month IS NOT NULL
             RETURN month,
                    count(DISTINCT CASE WHEN n:ns0__BenchmarkPrice THEN n END) as prices,
@@ -140,9 +142,9 @@ async def get_details(month: str):
             price_res = session.run("""
                 MATCH (pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)
                 WHERE pe.ns0__price_date CONTAINS $month
-                RETURN pe.ns0__price as price, pe.ns0__price_date as date, 
+                RETURN pe.uri as uri, pe.ns0__price as price, pe.ns0__price_date as date, 
                        pe.ns0__uom as uom, pe.ns0__region as region, 
-                       m.rdfs__label as material
+                       m.rdfs__label as material, m.uri as material_uri
                 ORDER BY date DESC
             """, month=month)
             
@@ -150,17 +152,19 @@ async def get_details(month: str):
             news_res = session.run("""
                 MATCH (me:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m)
                 WHERE me.ns0__date CONTAINS $month
-                RETURN me.ns0__title as title, me.ns0__date as date, me.ns0__region as region, 
-                       collect(DISTINCT m.rdfs__label) as materials
+                RETURN me.uri as uri, me.ns0__title as title, me.ns0__date as date, me.ns0__region as region, 
+                       collect(DISTINCT m.rdfs__label) as materials, collect(DISTINCT m.uri) as material_uris
                 ORDER BY date DESC
             """, month=month)
             
             # Takeaways
             takeaway_res = session.run("""
                 MATCH (a:ns0__Assertion)-[:ns0__isAbout]->(m)
-                WHERE a.ns0__date CONTAINS $month
-                RETURN a.ns0__content as content, a.ns0__date as date, 
-                       collect(DISTINCT m.rdfs__label) as materials
+                WHERE coalesce(a.ns0__date, toString(a.ns0__assertionMadeAt)) CONTAINS $month
+                RETURN a.uri as uri, 
+                       coalesce(a.ns0__content, a.ns0__snippetEvidence) as content, 
+                       coalesce(a.ns0__date, toString(a.ns0__assertionMadeAt)) as date, 
+                       collect(DISTINCT m.rdfs__label) as materials, collect(DISTINCT m.uri) as material_uris
                 ORDER BY date DESC
             """, month=month)
             
@@ -169,6 +173,48 @@ async def get_details(month: str):
                 "news": [r.data() for r in news_res],
                 "takeaways": [r.data() for r in takeaway_res]
             }
+    finally:
+        driver.close()
+
+@app.get("/api/validate")
+async def run_validation(node_uri: str = None):
+    shapes_file = "shapes.ttl"
+    if not os.path.exists(shapes_file):
+        return {"error": f"Shapes file {shapes_file} not found"}
+        
+    with open(shapes_file, 'r', encoding='utf-8') as f:
+        shacl_data = f.read()
+        
+    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+    try:
+        with driver.session() as session:
+            # Import shapes inline
+            session.run("CALL n10s.validation.shacl.import.inline($payload, 'Turtle')", payload=shacl_data)
+            
+            # Execute validation
+            if node_uri:
+                # Focused validation of target node and its relations
+                query = """
+                MATCH (n) WHERE n.uri = $node_uri
+                OPTIONAL MATCH (n)-[r]-(m)
+                WITH collect(DISTINCT n) + [x in collect(DISTINCT m) WHERE x IS NOT NULL] AS target_nodes
+                CALL n10s.validation.shacl.validateSet(target_nodes)
+                YIELD focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+                RETURN focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+                """
+                res = session.run(query, node_uri=node_uri)
+            else:
+                # Full graph validation
+                res = session.run("""
+                CALL n10s.validation.shacl.validate()
+                YIELD focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+                RETURN focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+                """)
+                
+            violations = [record.data() for record in res]
+            return {"violations": violations, "validatedNode": node_uri}
+    except Exception as e:
+        return {"error": str(e)}
     finally:
         driver.close()
 

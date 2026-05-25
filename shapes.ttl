@@ -6,16 +6,83 @@
     a sh:NodeShape ;
     sh:targetClass :BenchmarkPrice ;
     sh:property [
-        sh:path :price_date ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:name "price date" ;
-        sh:description "The date of the price event." ;
-    ] ;
-    sh:property [
         sh:path :observedFor ;
         sh:minCount 1 ;
         sh:nodeKind sh:IRI ;
         sh:name "material reference" ;
         sh:description "A reference to the material entity." ;
+    ] ;
+    sh:property [
+        sh:path :price_date ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "price date" ;
+        sh:description "The flat date property of the price event." ;
+    ] ;
+    sh:property [
+        sh:path :hasTemporalExtent ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "temporal extent" ;
+        sh:description "The nested temporal extent of the price event." ;
+    ] .
+
+:MarketEventShape
+    a sh:NodeShape ;
+    sh:targetClass :MarketEvent ;
+    sh:property [
+        sh:path :title ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "title" ;
+        sh:description "The headline or title of the market event." ;
+    ] ;
+    sh:property [
+        sh:path :date ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:name "date" ;
+        sh:description "The date of the market event." ;
+    ] ;
+    sh:property [
+        sh:path :affectsMaterial ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "affects material" ;
+        sh:description "The material entity affected by this event." ;
+    ] .
+
+:AssertionShape
+    a sh:NodeShape ;
+    sh:targetClass :Assertion ;
+    sh:property [
+        sh:path :isAbout ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:name "is about material" ;
+        sh:description "The material entity this assertion is about." ;
+    ] ;
+    sh:property [
+        sh:path :content ;
+        sh:maxCount 1 ;
+        sh:name "content" ;
+        sh:description "The textual content of the market intelligence takeaway." ;
+    ] ;
+    sh:property [
+        sh:path :snippetEvidence ;
+        sh:maxCount 1 ;
+        sh:name "snippet evidence" ;
+        sh:description "The snippet evidence of the market intelligence takeaway." ;
+    ] ;
+    sh:property [
+        sh:path :date ;
+        sh:maxCount 1 ;
+        sh:name "date" ;
+        sh:description "The date of the assertion." ;
+    ] ;
+    sh:property [
+        sh:path :assertionMadeAt ;
+        sh:maxCount 1 ;
+        sh:name "assertion made at" ;
+        sh:description "The assertion made at datetime." ;
     ] .

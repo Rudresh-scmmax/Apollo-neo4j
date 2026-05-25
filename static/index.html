@@ -595,6 +595,7 @@
         <div style="display: flex; align-items: center; gap: 1rem;">
             <button class="mgmt-btn-trigger" id="mgmt-btn">DATABASE MGMT</button>
             <button class="mgmt-btn-trigger" id="insights-btn" style="background: var(--primary); color: #000;">INSIGHTS DASHBOARD</button>
+            <button class="mgmt-btn-trigger" id="shacl-btn" style="background: #ef4444; color: #fff; border-color: #ef4444;">SHACL VALIDATION</button>
             <div class="status">
                 <div class="status-dot"></div>
                 GraphRAG Core Active
@@ -655,6 +656,39 @@
         </div>
     </div>
 
+    <!-- SHACL Validation Panel -->
+    <div class="insights-panel" id="shacl-panel">
+        <div class="insights-header">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <h2 style="margin:0; font-family: 'Outfit'; letter-spacing: 1px; color: #ef4444;">SHACL VALIDATION</h2>
+                <div id="validation-scope-badge" class="month-badge" style="background: #ef4444; color: #fff;">Full Graph</div>
+            </div>
+            <button class="close-mgmt" id="shacl-close" style="font-size: 1.5rem;">&times;</button>
+        </div>
+        <div class="insights-layout" style="flex-direction: column; padding: 2rem 3rem; overflow-y: auto;">
+            <!-- Top Controls -->
+            <div style="display: flex; gap: 1.5rem; margin-bottom: 2rem; align-items: center; flex-wrap: wrap;">
+                <button onclick="runSHACLValidation()" style="background: #ef4444; color: white;">RUN FULL GRAPH VALIDATION</button>
+                <div style="display: flex; flex: 1; gap: 0.5rem; min-width: 300px;">
+                    <input type="text" id="target-node-uri" placeholder="Enter focus node URI (e.g., http://api.stardog.com/BM_Glycerine_FOB_SEA_Nov24)..." style="margin: 0;">
+                    <button onclick="runSHACLValidation(document.getElementById('target-node-uri').value.trim())" style="background: var(--accent); color: white;">VALIDATE NODE & RELATIONS</button>
+                </div>
+            </div>
+
+            <!-- Validation Status Summary Card -->
+            <div id="validation-summary-card" style="padding: 1.5rem; border-radius: 12px; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); margin-bottom: 2rem; display: none;">
+                <h3 id="validation-summary-title" style="margin: 0 0 0.5rem 0; font-family: 'Outfit';">Validation Complete</h3>
+                <p id="validation-summary-text" style="opacity: 0.8; margin: 0; font-size: 0.95rem;"></p>
+            </div>
+
+            <!-- Violations Table -->
+            <h3 style="font-family: 'Outfit'; margin-bottom: 1rem;">Violations Report</h3>
+            <div id="shacl-violations-container" style="overflow-x: auto; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <p style="opacity:0.5; padding: 2rem; text-align: center;">Click one of the validation buttons above to run SHACL validation.</p>
+            </div>
+        </div>
+    </div>
+
     <div id="notification" class="notification"></div>
 
     <div class="chat-container">
@@ -689,6 +723,10 @@
         const insightsBtn = document.getElementById('insights-btn');
         const insightsClose = document.getElementById('insights-close');
 
+        const shaclPanel = document.getElementById('shacl-panel');
+        const shaclBtn = document.getElementById('shacl-btn');
+        const shaclClose = document.getElementById('shacl-close');
+
         mgmtBtn.addEventListener('click', () => mgmtPanel.classList.add('active'));
         mgmtClose.addEventListener('click', () => mgmtPanel.classList.remove('active'));
 
@@ -697,6 +735,11 @@
             loadInventory();
         });
         insightsClose.addEventListener('click', () => insightsPanel.classList.remove('active'));
+
+        shaclBtn.addEventListener('click', () => {
+            shaclPanel.classList.add('active');
+        });
+        shaclClose.addEventListener('click', () => shaclPanel.classList.remove('active'));
 
         // Tab Switching Logic
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -799,6 +842,138 @@
             } catch (err) { list.innerHTML = '<p style="color:red;">Failed to load inventory</p>'; }
         }
 
+        function openAndValidateNode(uri) {
+            // Open SHACL panel
+            shaclPanel.classList.add('active');
+            
+            // Set input field value
+            document.getElementById('target-node-uri').value = uri;
+            
+            // Run validation
+            runSHACLValidation(uri);
+        }
+
+        function formatURI(uri) {
+            if (!uri) return '-';
+            if (uri.startsWith('http://api.stardog.com/')) {
+                return uri.replace('http://api.stardog.com/', ':');
+            }
+            if (uri.startsWith('http://www.w3.org/1999/02/22-rdf-syntax-ns#')) {
+                return uri.replace('http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'rdf:');
+            }
+            if (uri.startsWith('http://www.w3.org/2000/01/rdf-schema#')) {
+                return uri.replace('http://www.w3.org/2000/01/rdf-schema#', 'rdfs:');
+            }
+            if (uri.startsWith('http://www.w3.org/ns/shacl#')) {
+                return uri.replace('http://www.w3.org/ns/shacl#', 'sh:');
+            }
+            return uri;
+        }
+
+        async function runSHACLValidation(nodeUri = null) {
+            const container = document.getElementById('shacl-violations-container');
+            const summaryCard = document.getElementById('validation-summary-card');
+            const summaryTitle = document.getElementById('validation-summary-title');
+            const summaryText = document.getElementById('validation-summary-text');
+            const scopeBadge = document.getElementById('validation-scope-badge');
+            
+            // Set badge
+            if (nodeUri) {
+                scopeBadge.textContent = 'Node: ' + formatURI(nodeUri);
+                scopeBadge.style.background = 'var(--accent)';
+            } else {
+                scopeBadge.textContent = 'Full Graph';
+                scopeBadge.style.background = '#ef4444';
+                // Clear input field if doing full validation
+                document.getElementById('target-node-uri').value = '';
+            }
+            
+            container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; padding:3rem; gap:1rem;"><div class="loader" style="display:block; width:30px; height:30px;"></div><span style="opacity:0.7;">Running SHACL Validation...</span></div>';
+            summaryCard.style.display = 'none';
+            
+            try {
+                let url = '/api/validate';
+                if (nodeUri) {
+                    url += `?node_uri=${encodeURIComponent(nodeUri)}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.error) {
+                    container.innerHTML = `<p style="color:#ef4444; padding:2rem; text-align:center; font-weight:600;">Error running validation: ${data.error}</p>`;
+                    return;
+                }
+                
+                const violations = data.violations || [];
+                
+                // Show summary card
+                summaryCard.style.display = 'block';
+                if (violations.length === 0) {
+                    summaryCard.style.background = 'rgba(16, 185, 129, 0.05)';
+                    summaryCard.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                    summaryTitle.style.color = '#10b981';
+                    summaryTitle.textContent = 'Validation Successful';
+                    summaryText.textContent = nodeUri 
+                        ? `No SHACL violations found for node <${nodeUri}> and its immediate relationships.`
+                        : 'No SHACL violations found across the entire graph.';
+                        
+                    container.innerHTML = '<p style="color:#10b981; padding:3rem; text-align:center; font-weight:500;">✓ All checks passed. Zero violations found.</p>';
+                } else {
+                    summaryCard.style.background = 'rgba(239, 68, 68, 0.05)';
+                    summaryCard.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    summaryTitle.style.color = '#ef4444';
+                    summaryTitle.textContent = 'Validation Completed with Violations';
+                    summaryText.textContent = nodeUri
+                        ? `Found ${violations.length} violation(s) associated with node <${nodeUri}>.`
+                        : `Found ${violations.length} violation(s) across the graph.`;
+                        
+                    let html = `<table>
+                        <thead>
+                            <tr>
+                                <th>Focus Node</th>
+                                <th>Type</th>
+                                <th>Property Path</th>
+                                <th>Offending Value</th>
+                                <th>Severity</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                    
+                    violations.forEach(v => {
+                        const focusStr = formatURI(v.focusNode);
+                        const typeStr = formatURI(v.nodeType);
+                        const pathStr = formatURI(v.resultPath);
+                        const valueStr = v.offendingValue ? formatURI(v.offendingValue) : '<span style="opacity:0.4;">None</span>';
+                        
+                        let severityColor = 'var(--primary)';
+                        if (v.severity && v.severity.includes('Violation')) severityColor = '#ef4444';
+                        else if (v.severity && v.severity.includes('Warning')) severityColor = '#f59e0b';
+                        else if (v.severity && v.severity.includes('Info')) severityColor = '#3b82f6';
+                        
+                        const severityBadge = `<span style="padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: ${severityColor}33; color: ${severityColor}; border: 1px solid ${severityColor}55;">${formatURI(v.severity)}</span>`;
+                        
+                        html += `<tr>
+                            <td>
+                                <a href="#" onclick="openAndValidateNode('${v.focusNode}'); return false;" style="color: var(--primary); text-decoration: none;" title="${v.focusNode}">${focusStr}</a>
+                            </td>
+                            <td>${typeStr}</td>
+                            <td style="font-family:monospace; font-size:0.85rem;">${pathStr}</td>
+                            <td>${valueStr}</td>
+                            <td>${severityBadge}</td>
+                            <td style="opacity:0.9; font-size:0.85rem;">${v.resultMessage || '-'}</td>
+                        </tr>`;
+                    });
+                    
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                }
+            } catch (err) {
+                container.innerHTML = `<p style="color:#ef4444; padding:2rem; text-align:center; font-weight:600;">Network error running validation: ${err.message}</p>`;
+            }
+        }
+
         async function loadMonthDetails(month) {
             document.getElementById('selected-month-badge').textContent = month;
             const containers = {
@@ -812,8 +987,19 @@
                 const data = await response.json();
 
                 if (data.prices.length > 0) {
-                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Price</th><th>UOM</th><th>Region</th></tr></thead><tbody>';
-                    data.prices.forEach(p => { html += `<tr><td>${p.date}</td><td>${p.material}</td><td>${p.price}</td><td>${p.uom}</td><td>${p.region || '-'}</td></tr>`; });
+                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Price</th><th>UOM</th><th>Region</th><th>Actions</th></tr></thead><tbody>';
+                    data.prices.forEach(p => { 
+                        html += `<tr>
+                            <td>${p.date}</td>
+                            <td>${p.material}</td>
+                            <td>${p.price}</td>
+                            <td>${p.uom}</td>
+                            <td>${p.region || '-'}</td>
+                            <td>
+                                <button onclick="openAndValidateNode('${p.uri}')" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; font-family: 'Outfit'; cursor: pointer; transition: all 0.2s;">Validate</button>
+                            </td>
+                        </tr>`; 
+                    });
                     html += '</tbody></table>';
                     containers.prices.innerHTML = html;
                 } else containers.prices.innerHTML = '<p style="opacity:0.5;">No price data available.</p>';
@@ -822,7 +1008,21 @@
                     let html = '';
                     data.news.forEach(n => {
                         const tags = (n.materials || []).map(m => `<div class="card-tag">${m}</div>`).join(' ');
-                        html += `<div class="insight-card"><div style="margin-bottom:1rem;">${tags}</div><h3 style="margin:0 0 1rem 0;">${n.title}</h3><div style="display:flex; justify-content:space-between; font-size:0.8rem; opacity:0.6;"><span>${n.date}</span><span>${n.region || 'Global'}</span></div></div>`;
+                        html += `<div class="insight-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <div style="margin-bottom:1rem;">${tags}</div>
+                                <h3 style="margin:0 0 1rem 0;">${n.title}</h3>
+                            </div>
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; opacity:0.6; margin-top: 1rem;">
+                                    <span>${n.date}</span>
+                                    <span>${n.region || 'Global'}</span>
+                                </div>
+                                <div style="margin-top: 1rem; text-align: right;">
+                                    <button onclick="openAndValidateNode('${n.uri}')" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 10px; font-size: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">Validate Node</button>
+                                </div>
+                            </div>
+                        </div>`;
                     });
                     containers.news.innerHTML = html;
                 } else containers.news.innerHTML = '<p style="opacity:0.5;">No news events found.</p>';
@@ -831,7 +1031,14 @@
                     let html = '';
                     data.takeaways.forEach(t => {
                         const tags = (t.materials || []).map(m => `<div class="card-tag" style="margin-right:5px;">${m}</div>`).join('');
-                        html += `<div class="takeaway-item"><div style="margin-bottom:0.5rem;">${tags}</div><div style="font-size:1.1rem; line-height:1.6;">${t.content}</div><div style="margin-top:1rem; font-size:0.8rem; opacity:0.4;">Report Date: ${t.date}</div></div>`;
+                        html += `<div class="takeaway-item">
+                            <div style="margin-bottom:0.5rem;">${tags}</div>
+                            <div style="font-size:1.1rem; line-height:1.6;">${t.content}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top:1rem; font-size:0.8rem;">
+                                <span style="opacity:0.4;">Report Date: ${t.date}</span>
+                                <button onclick="openAndValidateNode('${t.uri}')" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 10px; font-size: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">Validate Node</button>
+                            </div>
+                        </div>`;
                     });
                     containers.takeaways.innerHTML = html;
                 } else containers.takeaways.innerHTML = '<p style="opacity:0.5;">No takeaways extracted.</p>';
