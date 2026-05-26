@@ -1,0 +1,30 @@
+{
+  "find_price": [
+    "Benchmark Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)` — The BenchmarkPrice node points TO the material node (not the other way around).",
+    "Transaction Pricing (PO prices): `(s:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m)` and `(s)-[:ns0__hasTransactionPrice]->(t:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`.",
+    "Pricing Locations: CRITICAL — BenchmarkPrice location uses `(p:ns0__BenchmarkPrice)-[:ns0__applicableLocation]->(geo:ns1__GeoLocation)`. The location node label is `ns1__GeoLocation` (NOT `ns1__GeoRegion`). If location filtering returns nothing, remove the location filter."
+  ],
+  "price_trend": [
+    "Benchmark Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)` — The BenchmarkPrice node points TO the material node (not the other way around).",
+    "Pricing Locations: CRITICAL — BenchmarkPrice location uses `(p:ns0__BenchmarkPrice)-[:ns0__applicableLocation]->(geo:ns1__GeoLocation)`. The location node label is `ns1__GeoLocation` (NOT `ns1__GeoRegion`). If location filtering returns nothing, remove the location filter."
+  ],
+  "capacity_inquiry": [
+    "Plant Deliveries & Suppliers: When asked about plants supplying a location or supplier capacities:",
+    "  - A Purchaser Plant is `(pl:ns0__PurchaserPlant)`.",
+    "  - A Supplier is `(sup:ns0__Supplier)`. CRITICAL: DO NOT under any circumstances use `ns0__Company`, `ns0__OwnManufacturingPlant`, `ns0__SupplierManufacturingPlant`, or `ns0__SupplyAgreement`. Those are DEPRECATED. Always use `ns0__Supplier`.",
+    "  - Supplier Capacity: `(sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m)`. Capacity is `rel.ns0__capacity`. Supplier name is `sup.rdfs__label`.",
+    "  - The crucial join path for POs: `(sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant)` and `(ps)-[:ns0__procuredMaterial]->(m)`. YOU MUST use this full path to link a supplier to a destination plant. Do NOT create cartesian products."
+  ],
+  "news_search": [
+    "Disruptions & News Events: `(e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m)` or `(e:ns0__ForceMajeureEvent)-[:ns0__affectsMaterial]->(m)`. (Do NOT use `ns0__MarketEvent`).",
+    "IMPORTANT: Disruption events ONLY connect to `ns0__MaterialRequiredForProduction` nodes with label property like `Glycerine Refined` — NOT the bare `Glycerine` URI node. So when matching disruptions for 'Glycerine', use `m.rdfs__label =~ '(?i).*Glycerine.*'` (this will match 'Glycerine Refined', 'Glycerine Crude', etc).",
+    "Dates are on: `(e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent)` with `te.ns1__startDateTime` and `te.ns1__endDateTime` (these are DateTime objects, compare using `toString(te.ns1__startDateTime) >= 'YYYY-MM-DD'`).",
+    "Disruption/News Locations: `(e)-[:ns0__hasLocation]->(loc:ns1__GeoRegion)`. The disruption event location uses `ns1__GeoRegion`. Do NOT use `observedMarket` relationship."
+  ],
+  "takeaway_retrieval": [
+    "Assertions/Takeaways: `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`",
+    "Reports: `(a)-[:ns0__assertedIn]->(r:ns0__MarketResearchReport)`.",
+    "Dates: Use `a.ns0__assertionMadeAt` for the date the assertion was made (compare using string like `toString(a.ns0__assertionMadeAt) >= '2024-01-01'`). Do NOT use `ns0__publicationDate`.",
+    "Report Dates: If filtering the report itself by date, use `(r)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent)`."
+  ]
+}

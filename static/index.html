@@ -593,6 +593,7 @@
     <header>
         <div class="logo">APOLLO</div>
         <div style="display: flex; align-items: center; gap: 1rem;">
+            <button class="mgmt-btn-trigger" id="debug-btn" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border-color: #8b5cf6;">DEBUG LOGS</button>
             <button class="mgmt-btn-trigger" id="mgmt-btn">DATABASE MGMT</button>
             <button class="mgmt-btn-trigger" id="insights-btn" style="background: var(--primary); color: #000;">INSIGHTS DASHBOARD</button>
             <button class="mgmt-btn-trigger" id="shacl-btn" style="background: #ef4444; color: #fff; border-color: #ef4444;">SHACL VALIDATION</button>
@@ -613,6 +614,10 @@
             <div class="upload-card">
                 <h3>Ontology (TTL)</h3>
                 <p>Update your knowledge graph schema and definitions.</p>
+                <div style="background: rgba(255, 50, 50, 0.15); border-left: 4px solid #ff3333; padding: 10px; margin: 12px 0; border-radius: 2px; text-align: left;">
+                    <strong style="color: #ff5555; display: block; margin-bottom: 4px;">⚠️ CRITICAL WARNING</strong>
+                    <span style="color: #ffaaaa; font-size: 0.85em; display: block; line-height: 1.4;">Uploading a new .ttl file will <b>COMPLETELY WIPE</b> the existing knowledge graph database. Do not proceed unless you intend to overwrite all current data.</span>
+                </div>
                 <div class="file-input-wrapper">
                     <button class="btn-upload" id="ttl-label">Select .ttl File</button>
                     <input type="file" id="ttl-upload" accept=".ttl" onchange="updateLabel('ttl-upload', 'ttl-label')">
@@ -625,6 +630,17 @@
                 <p>Pull latest prices, news & takeaways from PostgreSQL into the graph.</p>
                 <button class="btn-upload" style="background: var(--primary); color: #000;" onclick="syncFromDatabase()">SYNC NOW</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Debug Logs Panel -->
+    <div class="mgmt-panel" id="debug-panel" style="width: 500px; right: -550px;">
+        <div class="mgmt-header">
+            <div class="mgmt-title">THINKING PROCESS</div>
+            <div class="close-mgmt" id="debug-close">✕</div>
+        </div>
+        <div class="upload-section" id="debug-logs-container" style="padding: 1.5rem; overflow-y: auto; height: calc(100vh - 80px);">
+            <div style="text-align: center; opacity: 0.5; margin-top: 2rem;">Ask a question to see the logs.</div>
         </div>
     </div>
 
@@ -724,8 +740,19 @@
         const shaclBtn = document.getElementById('shacl-btn');
         const shaclClose = document.getElementById('shacl-close');
 
-        mgmtBtn.addEventListener('click', () => mgmtPanel.classList.add('active'));
-        mgmtClose.addEventListener('click', () => mgmtPanel.classList.remove('active'));
+        const debugBtn = document.getElementById('debug-btn');
+        const debugPanel = document.getElementById('debug-panel');
+        const debugClose = document.getElementById('debug-close');
+        const debugContainer = document.getElementById('debug-logs-container');
+
+        mgmtBtn.addEventListener('click', () => { mgmtPanel.style.right = '0'; });
+        mgmtClose.addEventListener('click', () => { mgmtPanel.style.right = '-400px'; });
+        
+        debugBtn.addEventListener('click', async () => { 
+            debugPanel.style.right = '0';
+            await fetchDebugLogs();
+        });
+        debugClose.addEventListener('click', () => { debugPanel.style.right = '-550px'; });
 
         insightsBtn.addEventListener('click', () => {
             insightsPanel.classList.add('active');
@@ -747,6 +774,51 @@
                 document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
             });
         });
+
+        async function fetchDebugLogs() {
+            try {
+                const res = await fetch('/logs');
+                const logs = await res.json();
+                
+                if (logs.length === 0) {
+                    debugContainer.innerHTML = '<div style="text-align: center; opacity: 0.5; margin-top: 2rem;">No logs available yet. Ask a question!</div>';
+                    return;
+                }
+                
+                let html = '';
+                logs.forEach((log, index) => {
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    html += `
+                        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                                <div style="font-weight: 600; color: #fff;">Q: ${log.question}</div>
+                                <div style="font-size: 0.75rem; color: #a78bfa; background: rgba(139, 92, 246, 0.1); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.3); white-space: nowrap; margin-left: 10px;">${log.intent}</div>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <div style="font-size: 0.75rem; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: 600;">🧠 LLM Extraction</div>
+                                <pre style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; color: #d1d5db; border: 1px solid rgba(245, 158, 11, 0.2); white-space: pre-wrap;">${JSON.stringify(log.intent_extraction, null, 2)}</pre>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <div style="font-size: 0.75rem; color: #10b981; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: 600;">⚡ Generated Cypher</div>
+                                <pre style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.2); white-space: pre-wrap;">${log.cypher || "None"}</pre>
+                            </div>
+                            
+                            <div>
+                                <div style="font-size: 0.75rem; color: #60a5fa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; font-weight: 600;">💬 Agent Response</div>
+                                <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-size: 0.85rem; overflow-x: auto; color: #bfdbfe; border: 1px solid rgba(96, 165, 250, 0.2); max-height: 150px; overflow-y: auto;">
+                                    ${log.response.replace(/\\n/g, '<br/>')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                debugContainer.innerHTML = html;
+            } catch (e) {
+                console.error("Failed to fetch logs", e);
+            }
+        }
 
         async function sendMessage() {
             const query = userInput.value.trim();

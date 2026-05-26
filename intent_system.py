@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from llm_module import invoke_bedrock_text
 
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +45,7 @@ class IntentSystem:
         
         Intent Domains:
         - PRICING: For price trends, spot/contract prices, UOM, and currency.
-        - MARKET_INTELLIGENCE: For news, disruptions, logistics, and supply chain events.
+        - MARKET_INTELLIGENCE: For news, disruptions, logistics, supply chain events, plant production, and supplier capacity.
         - STRATEGIC_INSIGHT: For high-level assertions, takeaways, and market reports.
         
         Return ONLY a JSON object with a list of relevant domains:
@@ -67,8 +68,8 @@ class IntentSystem:
     def classify_market(self, question, decomposition):
         system_msg = """
         You are a Market Intelligence Classifier. Identify specific market-related intents.
-        Intents: news_search, disruption_check, logistics_update, event_summary.
-        Return ONLY a JSON object: {"intent": "news_search", "confidence": 0.9}
+        Intents: news_search, disruption_check, logistics_update, event_summary, capacity_inquiry.
+        Return ONLY a JSON object: {"intent": "capacity_inquiry", "confidence": 0.9}
         """
         return invoke_bedrock_text(system_msg, question)
 
@@ -125,8 +126,26 @@ class IntentSystem:
             
         # 4. Aggregate
         final_intent = self.aggregate_intents(question, agent_results)
-        logger.info(f"Final Intent: {final_intent}")
         
+        # 5. Semantic Layer Mapping
+        try:
+            with open(os.path.join(os.path.dirname(__file__), 'semantic_layer.json'), 'r') as f:
+                semantic_layer = json.load(f)
+            
+            rules = []
+            primary = final_intent.get('primary_intent', '')
+            if primary in semantic_layer:
+                rules.extend(semantic_layer[primary])
+            for secondary in final_intent.get('secondary_intents', []):
+                if secondary in semantic_layer:
+                    rules.extend(semantic_layer[secondary])
+                    
+            final_intent['semantic_rules'] = list(set(rules))
+        except Exception as e:
+            logger.error(f"Failed to load semantic layer: {e}")
+            final_intent['semantic_rules'] = []
+            
+        logger.info(f"Final Intent with Semantic Rules: {final_intent}")
         return final_intent
 
 if __name__ == "__main__":

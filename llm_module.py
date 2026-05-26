@@ -188,8 +188,15 @@ def generate_cypher(question, schema, intent=None):
     LLM Agent that generates a Cypher query based on the database schema.
     """
     intent_context = ""
+    semantic_rules_str = ""
     if intent:
         intent_context = f"\nCLASSIFIED INTENT:\n{json.dumps(intent, indent=2)}\n"
+        if intent.get('semantic_rules'):
+            rules_formatted = '\n'.join([f"       - {rule}" for rule in intent['semantic_rules']])
+            semantic_rules_str = f"    4. DYNAMIC SEMANTIC RULES (MUST FOLLOW):\n{rules_formatted}"
+        else:
+            semantic_rules_str = "    4. DYNAMIC SEMANTIC RULES: None specific for this intent. Use schema below."
+
 
     system_msg = f"""
     You are a Neo4j Cypher Expert. Your task is to generate a Cypher query to answer the user's question.
@@ -215,18 +222,7 @@ def generate_cypher(question, schema, intent=None):
     2. MAGNITUDE PRICE VALUE: BenchmarkPrice and TransactionPrice do NOT have a direct price property. The actual numeric price value is in a related `ns1__Magnitude` node. 
        - You MUST join them using: `(p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)` and retrieve/filter on `mag.ns1__numericValue`.
     3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g. `p.ns0__price_date`, `mag.ns1__numericValue`) are NOT NULL.
-    4. DATA DICTIONARY / RELATIONSHIPS:
-       - Benchmark Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)` — The BenchmarkPrice node points TO the material node (not the other way around).
-       - Transaction Pricing (PO prices): `(s:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m)` and `(s)-[:ns0__hasTransactionPrice]->(t:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`.
-       - Plant Deliveries & Suppliers: When asked about plants supplying a location or supplier capacities:
-         - A Purchaser Plant is `(pl:ns0__PurchaserPlant)`.
-         - A Supplier is `(sup:ns0__Supplier)`. CRITICAL: DO NOT under any circumstances use `ns0__Company`, `ns0__OwnManufacturingPlant`, `ns0__SupplierManufacturingPlant`, or `ns0__SupplyAgreement`. Those are DEPRECATED. Always use `ns0__Supplier`.
-         - Supplier Capacity: `(sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m)`. Capacity is `rel.ns0__capacity`. Supplier name is `sup.rdfs__label`.
-         - The crucial join path for POs: `(sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant)` and `(ps)-[:ns0__procuredMaterial]->(m)`. YOU MUST use this full path to link a supplier to a destination plant. Do NOT create cartesian products.
-       - Disruptions & News Events: `(e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m)` or `(e:ns0__ForceMajeureEvent)-[:ns0__affectsMaterial]->(m)`. (Do NOT use `ns0__MarketEvent`). IMPORTANT: Disruption events ONLY connect to `ns0__MaterialRequiredForProduction` nodes with label property like `Glycerine Refined` — NOT the bare `Glycerine` URI node. So when matching disruptions for 'Glycerine', use `m.rdfs__label =~ '(?i).*Glycerine.*'` (this will match 'Glycerine Refined', 'Glycerine Crude', etc). Dates are on: `(e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent)` with `te.ns1__startDateTime` and `te.ns1__endDateTime` (these are DateTime objects, compare using `toString(te.ns1__startDateTime) >= 'YYYY-MM-DD'`).
-       - Assertions/Takeaways: `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`
-       - Pricing Locations: CRITICAL — BenchmarkPrice location uses `(p:ns0__BenchmarkPrice)-[:ns0__applicableLocation]->(geo:ns1__GeoLocation)`. The location node label is `ns1__GeoLocation` (NOT `ns1__GeoRegion`). If location filtering returns nothing, remove the location filter.
-       - Disruption/News Locations: `(e)-[:ns0__hasLocation]->(loc:ns1__GeoRegion)`. The disruption event location uses `ns1__GeoRegion`. Do NOT use `observedMarket` relationship.
+{semantic_rules_str}
     5. NO DOUBLE WHERE CLAUSES: Never generate a query containing the `WHERE` keyword twice. Declare all paths in the MATCH clause (separated by commas) and put all conditions in a single WHERE clause using AND.
        - Example for disruptions: MATCH (e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m), (e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent) WHERE m.rdfs__label =~ '(?i).*Glycerine.*' AND toString(te.ns1__startDateTime) >= '2024-01-01' AND toString(te.ns1__endDateTime) <= '2024-12-31' RETURN e.rdfs__label as event, te.ns1__startDateTime as start_date, te.ns1__endDateTime as end_date
     6. OUTPUT FORMAT: OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER. DO NOT format as JSON.

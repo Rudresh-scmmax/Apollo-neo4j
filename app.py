@@ -11,6 +11,10 @@ import shutil
 import etl_pipeline
 from schema_utils import get_graph_schema
 from intent_system import IntentSystem
+from datetime import datetime
+
+# Global debug logs array
+chat_logs = []
 
 app = FastAPI()
 
@@ -133,11 +137,29 @@ def run_dynamic_query(question):
 
         # 7. Compact retrieved results into Markdown
         compacted = compactor.compact(question, records)
-        return compacted
+        
+        # 8. Build Debug Log
+        debug_log = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "question": question,
+            "intent": intent_obj.get("primary_intent", "GENERAL"),
+            "intent_extraction": intent_obj,
+            "cypher": cypher,
+            "response": compacted
+        }
+        
+        return compacted, debug_log
 
     except Exception as e:
         print(f"run_dynamic_query failed: {e}")
-        return f"System Error: {e}"
+        err_msg = f"System Error: {e}"
+        return err_msg, {
+            "timestamp": datetime.utcnow().isoformat(),
+            "question": question,
+            "intent": "ERROR",
+            "cypher": "NONE",
+            "response": err_msg
+        }
     finally:
         driver.close()
 
@@ -292,28 +314,21 @@ async def chat(request: Request):
         if not user_query:
             return {"response": "Please provide a query."}
         
-        # 1. Dynamic Retrieval
-        graph_data = run_dynamic_query(user_query)
+        # 1. Dynamic Retrieval & Synthesis (Handled internally by Multi-Agent system)
+        final_response, debug_log = run_dynamic_query(user_query)
         
-        # 2. LLM Synthesis
-        system_prompt = f"""
-        You are the Apollo Procurement Intelligence Assistant. 
-        You have analyzed the knowledge graph and found the following raw data:
+        chat_logs.insert(0, debug_log)
+        if len(chat_logs) > 50:
+            chat_logs.pop()
         
-        --- RAW GRAPH DATA ---
-        {graph_data}
-        ----------------------
-        
-        Answer the user's question professionally using this data. 
-        If the data contains multiple price points or structured lists, ALWAYS use Markdown TABLES for clarity.
-        If the data is empty, explain what you looked for but couldn't find.
-        """
-        
-        answer = invoke_bedrock_chat(system_prompt, user_query)
-        return {"response": answer}
+        return {"response": final_response}
         
     except Exception as e:
         return {"response": f"Backend error: {str(e)}"}
+
+@app.get("/logs")
+async def get_logs():
+    return chat_logs
 
 @app.post("/upload/ttl")
 async def upload_ttl(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
