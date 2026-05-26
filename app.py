@@ -26,6 +26,10 @@ NEO4J_URI = "bolt://44.202.98.128:7687"
 NEO4J_AUTH = ("neo4j", "neo4j@123")
 
 def run_dynamic_query(question):
+    from retrieval_validator import RetrievalValidator
+    from context_compactor import ContextCompactor
+    from agent_architectures import MultiAgentClassifier
+    
     driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     
     # 1. Get Schema
@@ -33,34 +37,59 @@ def run_dynamic_query(question):
     
     # 2. Get Intent
     print("[*] Classifying intent...")
-    intent_system = IntentSystem()
+    intent_system = MultiAgentClassifier()
     intent_obj = intent_system.process_question(question)
     
     # 3. Generate Cypher
     cypher = generate_cypher(question, schema, intent=intent_obj)
     print(f"GENERATED CYPHER: {cypher}")
     
-    # 4. Execute
-    results = []
+    records = []
+    
+    # 4. Execute and Validate
     try:
+        validator = RetrievalValidator(NEO4J_URI, NEO4J_AUTH)
+        compactor = ContextCompactor()
+        
         with driver.session() as session:
             embedding = get_embedding(question)
-            print(f"Executing Cypher: {cypher}")
-            try:
-                res = session.run(cypher, embedding=embedding)
-                for record in res:
-                    item = record.data()
-                    # Handle flexible column names from dynamic Cypher
-                    parts = [f"{k}: {v}" for k, v in item.items() if v]
-                    formatted = " | ".join(parts)
-                    results.append(formatted)
-                    print(f"Query Result: {formatted}")
-            except Exception as e:
-                print(f"Dynamic Cypher failed: {e}. Falling back to semantic search.")
+            execution_error = None
             
-            # 3.5 Secondary Recovery Scan (if 0 results and date-like query)
-            if not results:
-                print("Primary query returned 0 results. Attempting Deep Scan...")
+            if cypher:
+                print(f"Executing Cypher: {cypher}")
+                try:
+                    res = session.run(cypher, embedding=embedding)
+                    for record in res:
+                        records.append(record.data())
+                except Exception as e:
+                    execution_error = str(e)
+                    print(f"Dynamic Cypher execution error: {e}")
+            else:
+                execution_error = "Cypher query generation failed."
+                
+            # Validate retrieved results
+            validation = validator.validate(records, intent_obj) if not execution_error else {"is_valid": False, "reason": execution_error}
+            
+            # If invalid/empty, attempt Self-Healing
+            if not validation["is_valid"]:
+                print(f"Validation failed: {validation['reason']}. Triggering self-healing...")
+                err_msg = execution_error or validation["reason"]
+                healed_cypher, healed_records, report = validator.heal_and_execute(
+                    question=question,
+                    bad_cypher=cypher or "MATCH (n) RETURN n LIMIT 0",
+                    error_msg=err_msg,
+                    schema=schema,
+                    intent=intent_obj
+                )
+                if report["status"] == "healed":
+                    records = healed_records
+                    print(f"Self-healing succeeded. Healed Cypher: {healed_cypher}")
+                else:
+                    print(f"Self-healing failed: {report['reason']}")
+            
+            # 5. Secondary Recovery Scan (if 0 results and date-like query)
+            if not records:
+                print("Primary query and healing returned 0 results. Attempting Deep Scan...")
                 import re
                 day_match = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])\b', question)
                 if day_match:
@@ -86,13 +115,11 @@ def run_dynamic_query(question):
                     """
                     res = session.run(recovery_cypher)
                     for record in res:
-                        item = record.data()
-                        formatted = f"Price Point: {item['price']} {item['uom']} for {item['material']} on {item['date']}"
-                        results.append(formatted)
-                        print(f"Recovery Result: {formatted}")
+                        records.append(record.data())
             
-            # FALLBACK: If no results or error, perform a wide vector search
-            if not results:
+            # 6. FALLBACK: If no results or error, perform a wide vector search
+            if not records:
+                print("Running wide vector search fallback...")
                 fallback_cypher = """
                 CALL db.index.vector.queryNodes('assertion_index', 50, $embedding) YIELD node, score
                 OPTIONAL MATCH (node)-[:ns0__isAbout]->(m)
@@ -102,30 +129,39 @@ def run_dynamic_query(question):
                 """
                 res = session.run(fallback_cypher, embedding=embedding)
                 for record in res:
-                    results.append(f"Market Intelligence: {record['finding']} (Date: {record['date']}, Material: {record['material']})")
+                    records.append(record.data())
+
+        # 7. Compact retrieved results into Markdown
+        compacted = compactor.compact(question, records)
+        return compacted
 
     except Exception as e:
+        print(f"run_dynamic_query failed: {e}")
         return f"System Error: {e}"
     finally:
         driver.close()
-    
-    return "\n".join(results[:200]) if results else "No direct graph matches found."
 
 @app.get("/api/inventory")
 async def get_inventory():
     driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     try:
         with driver.session() as session:
-            # Query months and counts
             cypher = """
             MATCH (n:Resource)
-            WHERE n:ns0__BenchmarkPrice OR n:ns0__MarketEvent OR n:ns0__Assertion
-            WITH n, substring(coalesce(n.ns0__date, n.ns0__price_date, toString(n.ns0__assertionMadeAt)), 0, 7) as month
-            WHERE month IS NOT NULL
+            WHERE n:ns0__BenchmarkPrice OR n:ns0__SupplyDisruptionEvent
+                  OR n:ns0__Assertion OR n:ns0__TransactionPrice
+            WITH n,
+                 substring(coalesce(
+                     n.ns0__price_date,
+                     n.ns0__published_date,
+                     toString(n.ns0__assertionMadeAt)
+                 ), 0, 7) as month
+            WHERE month IS NOT NULL AND month <> ''
             RETURN month,
-                   count(DISTINCT CASE WHEN n:ns0__BenchmarkPrice THEN n END) as prices,
-                   count(DISTINCT CASE WHEN n:ns0__MarketEvent THEN n END) as news,
-                   count(DISTINCT CASE WHEN n:ns0__Assertion THEN n END) as takeaways
+                   count(DISTINCT CASE WHEN n:ns0__BenchmarkPrice    THEN n END) as prices,
+                   count(DISTINCT CASE WHEN n:ns0__SupplyDisruptionEvent THEN n END) as news,
+                   count(DISTINCT CASE WHEN n:ns0__Assertion          THEN n END) as takeaways,
+                   count(DISTINCT CASE WHEN n:ns0__TransactionPrice   THEN n END) as transactions
             ORDER BY month DESC
             """
             res = session.run(cypher)
@@ -138,40 +174,69 @@ async def get_details(month: str):
     driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     try:
         with driver.session() as session:
-            # Prices
+            # Benchmark Prices (join Magnitude for numeric value)
             price_res = session.run("""
                 MATCH (pe:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)
                 WHERE pe.ns0__price_date CONTAINS $month
-                RETURN pe.uri as uri, pe.ns0__price as price, pe.ns0__price_date as date, 
-                       pe.ns0__uom as uom, pe.ns0__region as region, 
+                OPTIONAL MATCH (pe)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)
+                RETURN pe.uri as uri,
+                       coalesce(toString(mag.ns1__numericValue), pe.ns0__price) as price,
+                       pe.ns0__price_date as date,
+                       coalesce(mag.ns1__unit, pe.ns0__currency) as currency,
+                       pe.ns0__uom as uom, pe.ns0__region as region,
                        m.rdfs__label as material, m.uri as material_uri
                 ORDER BY date DESC
             """, month=month)
-            
-            # News
-            news_res = session.run("""
-                MATCH (me:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m)
-                WHERE me.ns0__date CONTAINS $month
-                RETURN me.uri as uri, me.ns0__title as title, me.ns0__date as date, me.ns0__region as region, 
-                       collect(DISTINCT m.rdfs__label) as materials, collect(DISTINCT m.uri) as material_uris
+
+            # Transaction Prices (PO history)
+            tx_res = session.run("""
+                MATCH (ps:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m),
+                      (ps)-[:ns0__hasTransactionPrice]->(tp:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)
+                WHERE ps.ns0__purchase_date CONTAINS $month
+                RETURN tp.uri as uri,
+                       mag.ns1__numericValue as price,
+                       ps.ns0__purchase_date as date,
+                       mag.ns1__unit as currency,
+                       ps.ns0__uom as uom,
+                       ps.ns0__supplier_id as supplier,
+                       ps.ns0__po_number as po_number,
+                       ps.ns0__po_status as status,
+                       ps.ns0__quantity as quantity,
+                       m.rdfs__label as material, m.uri as material_uri
                 ORDER BY date DESC
             """, month=month)
-            
-            # Takeaways
+
+            # News / Disruption Events
+            news_res = session.run("""
+                MATCH (me:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m)
+                WHERE me.ns0__published_date CONTAINS $month
+                OPTIONAL MATCH (me)-[:ns0__hasLocation]->(geo)
+                RETURN me.uri as uri, me.rdfs__label as title,
+                       me.ns0__published_date as date,
+                       geo.rdfs__label as region,
+                       collect(DISTINCT m.rdfs__label) as materials,
+                       collect(DISTINCT m.uri) as material_uris
+                ORDER BY date DESC
+            """, month=month)
+
+            # Takeaways / Assertions
             takeaway_res = session.run("""
                 MATCH (a:ns0__Assertion)-[:ns0__isAbout]->(m)
-                WHERE coalesce(a.ns0__date, toString(a.ns0__assertionMadeAt)) CONTAINS $month
-                RETURN a.uri as uri, 
-                       coalesce(a.ns0__content, a.ns0__snippetEvidence) as content, 
-                       coalesce(a.ns0__date, toString(a.ns0__assertionMadeAt)) as date, 
-                       collect(DISTINCT m.rdfs__label) as materials, collect(DISTINCT m.uri) as material_uris
+                WHERE toString(a.ns0__assertionMadeAt) CONTAINS $month
+                RETURN a.uri as uri,
+                       coalesce(a.ns0__snippetEvidence, a.ns0__content) as content,
+                       toString(a.ns0__assertionMadeAt) as date,
+                       a.ns0__publication as publication,
+                       collect(DISTINCT m.rdfs__label) as materials,
+                       collect(DISTINCT m.uri) as material_uris
                 ORDER BY date DESC
             """, month=month)
-            
+
             return {
-                "prices": [r.data() for r in price_res],
-                "news": [r.data() for r in news_res],
-                "takeaways": [r.data() for r in takeaway_res]
+                "prices":       [r.data() for r in price_res],
+                "transactions": [r.data() for r in tx_res],
+                "news":         [r.data() for r in news_res],
+                "takeaways":    [r.data() for r in takeaway_res]
             }
     finally:
         driver.close()
@@ -252,34 +317,38 @@ async def chat(request: Request):
 
 @app.post("/upload/ttl")
 async def upload_ttl(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Upload a new ontology TTL file and trigger a full ETL sync."""
     try:
         file_path = "apollo5.ttl"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        # Trigger ETL Pipeline in background
         background_tasks.add_task(etl_pipeline.run_pipeline)
-        
         return {"message": "Ontology uploaded successfully. Synchronization started in background."}
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"Upload failed: {str(e)}"})
 
-@app.post("/upload/pdf")
-async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+
+@app.post("/api/etl/sync")
+async def trigger_etl_sync(background_tasks: BackgroundTasks, request: Request):
+    """
+    Trigger a PostgreSQL → Neo4j data sync in the background.
+    Optionally accepts a JSON body with 'material_ids' list to restrict sync scope.
+    Example body: {"material_ids": ["100724-000000", "102089-000000"]}
+    Leave body empty to sync ALL materials.
+    """
     try:
-        # Ensure reports directory exists
-        os.makedirs("reports", exist_ok=True)
-        
-        file_path = os.path.join("reports", file.filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        # Trigger ETL Pipeline in background
-        background_tasks.add_task(etl_pipeline.run_pipeline)
-        
-        return {"message": f"Report '{file.filename}' uploaded. Ingestion started in background."}
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        material_ids = body.get("material_ids", None)  # None = all materials
+        background_tasks.add_task(etl_pipeline.run_pipeline, material_ids)
+        scope = f"{len(material_ids)} materials" if material_ids else "all materials"
+        return {"message": f"PSQL → Neo4j sync started in background ({scope})."}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"message": f"Upload failed: {str(e)}"})
+        return JSONResponse(status_code=500, content={"message": f"Sync trigger failed: {str(e)}"})
+
 
 @app.get("/")
 async def read_index():

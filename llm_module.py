@@ -208,16 +208,32 @@ def generate_cypher(question, schema, intent=None):
     STRICT RULES:
     1. DYNAMIC MATERIAL MATCH: 
        - If the user provides a numeric ID, match EXACTLY using `m.ns0__material_id = 'THE_ID'`.
-       - If the user provides a text name, use regex: `m.rdfs__label =~ '(?i).*THE_NAME.*'`.
+       - If the user provides a text name, use regex match on BOTH label and URI fragment: `(m.rdfs__label =~ '(?i).*THE_NAME.*' OR m.uri =~ '(?i).*THE_NAME.*')`.
+       - CRITICAL: Some material nodes (like `http://api.stardog.com/Glycerine`) ONLY have labels `Resource` and `owl__NamedIndividual` and do NOT have the `ns0__MaterialRequiredForProduction` label or `rdfs__label` property. Therefore, do NOT specify label constraints on the material node `m` (i.e., use `(m)` instead of `(m:ns0__MaterialRequiredForProduction)`), and match using `(m.rdfs__label =~ '(?i).*THE_NAME.*' OR m.uri =~ '(?i).*THE_NAME.*')`.
        - CRITICAL: Regex (`=~`) MUST be placed in the `WHERE` clause, NEVER inside the node brackets `{{}}`.
-       - ALWAYS attach properties to the correct node: Prices/Dates belong to `ns0__BenchmarkPrice` or `ns0__TransactionPrice`. Material ID/Name belongs to `ns0__MaterialRequiredForProduction`.
-    2. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties are NOT NULL.
-    3. DATA DICTIONARY:
-       - Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`
-       - News: `(e:ns0__MarketEvent)-[:ns0__affectsMaterial]->(m:ns0__MaterialRequiredForProduction)`
-       - Transaction: `(t:ns0__TransactionPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction)`
-    4. OUTPUT FORMAT: OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER. DO NOT format as JSON.
-       Example Query: MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label =~ '(?i).*THE_MATERIAL.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1
+       - ALWAYS attach properties to the correct node: Dates (e.g., `ns0__price_date` property) belong to `ns0__BenchmarkPrice` or `ns0__TransactionPrice`.
+    2. MAGNITUDE PRICE VALUE: BenchmarkPrice and TransactionPrice do NOT have a direct price property. The actual numeric price value is in a related `ns1__Magnitude` node. 
+       - You MUST join them using: `(p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)` and retrieve/filter on `mag.ns1__numericValue`.
+    3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g. `p.ns0__price_date`, `mag.ns1__numericValue`) are NOT NULL.
+    4. DATA DICTIONARY / RELATIONSHIPS:
+       - Benchmark Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)` — The BenchmarkPrice node points TO the material node (not the other way around).
+       - Transaction Pricing (PO prices): `(s:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m)` and `(s)-[:ns0__hasTransactionPrice]->(t:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`.
+       - Plant Deliveries & Suppliers: When asked about plants supplying a location or supplier capacities:
+         - A Purchaser Plant is `(pl:ns0__PurchaserPlant)`.
+         - A Supplier is `(sup:ns0__Supplier)`. CRITICAL: DO NOT under any circumstances use `ns0__Company`, `ns0__OwnManufacturingPlant`, `ns0__SupplierManufacturingPlant`, or `ns0__SupplyAgreement`. Those are DEPRECATED. Always use `ns0__Supplier`.
+         - Supplier Capacity: `(sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m)`. Capacity is `rel.ns0__capacity`. Supplier name is `sup.rdfs__label`.
+         - The crucial join path for POs: `(sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant)` and `(ps)-[:ns0__procuredMaterial]->(m)`. YOU MUST use this full path to link a supplier to a destination plant. Do NOT create cartesian products.
+       - Disruptions & News Events: `(e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m)` or `(e:ns0__ForceMajeureEvent)-[:ns0__affectsMaterial]->(m)`. (Do NOT use `ns0__MarketEvent`). IMPORTANT: Disruption events ONLY connect to `ns0__MaterialRequiredForProduction` nodes with label property like `Glycerine Refined` — NOT the bare `Glycerine` URI node. So when matching disruptions for 'Glycerine', use `m.rdfs__label =~ '(?i).*Glycerine.*'` (this will match 'Glycerine Refined', 'Glycerine Crude', etc). Dates are on: `(e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent)` with `te.ns1__startDateTime` and `te.ns1__endDateTime` (these are DateTime objects, compare using `toString(te.ns1__startDateTime) >= 'YYYY-MM-DD'`).
+       - Assertions/Takeaways: `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`
+       - Pricing Locations: CRITICAL — BenchmarkPrice location uses `(p:ns0__BenchmarkPrice)-[:ns0__applicableLocation]->(geo:ns1__GeoLocation)`. The location node label is `ns1__GeoLocation` (NOT `ns1__GeoRegion`). If location filtering returns nothing, remove the location filter.
+       - Disruption/News Locations: `(e)-[:ns0__hasLocation]->(loc:ns1__GeoRegion)`. The disruption event location uses `ns1__GeoRegion`. Do NOT use `observedMarket` relationship.
+    5. NO DOUBLE WHERE CLAUSES: Never generate a query containing the `WHERE` keyword twice. Declare all paths in the MATCH clause (separated by commas) and put all conditions in a single WHERE clause using AND.
+       - Example for disruptions: MATCH (e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m), (e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent) WHERE m.rdfs__label =~ '(?i).*Glycerine.*' AND toString(te.ns1__startDateTime) >= '2024-01-01' AND toString(te.ns1__endDateTime) <= '2024-12-31' RETURN e.rdfs__label as event, te.ns1__startDateTime as start_date, te.ns1__endDateTime as end_date
+    6. OUTPUT FORMAT: OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER. DO NOT format as JSON.
+    7. MATCH VS WHERE SYNTAX: ALL graph traversal relationships (like `(p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`) MUST go in the MATCH clause separated by commas. NEVER place a relationship path inside a WHERE clause. The WHERE clause is strictly for properties.
+       Example 1 (Pricing/Highest Price): MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m), (p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude) WHERE (m.rdfs__label =~ '(?i).*Glycerine.*' OR m.uri =~ '(?i).*Glycerine.*') AND p.ns0__price_date IS NOT NULL RETURN p.ns0__price_date as date, mag.ns1__numericValue as price ORDER BY price DESC LIMIT 1
+       Example 2 (Godrej Capacity): MATCH (sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m) WHERE sup.rdfs__label =~ '(?i).*Godrej.*' RETURN sum(rel.ns0__capacity) as capacity
+       Example 3 (Plants Supplying Mundra): MATCH (sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant), (ps)-[:ns0__procuredMaterial]->(m), (sup)-[rel:ns0__suppliesMaterial]->(m) WHERE pl.rdfs__label =~ '(?i).*Mundra.*' AND (m.rdfs__label =~ '(?i).*Glycerine.*' OR m.uri =~ '(?i).*Glycerine.*') RETURN sum(rel.ns0__capacity) as capacity
     """
     
     # We use a lower temperature for code generation
@@ -256,6 +272,20 @@ def fix_cypher_syntax(cypher: str) -> str:
                     cypher = cypher[:idx] + f"WHERE {var}.{prop} =~ {val} \n" + cypher[idx:]
                 else:
                     cypher += f"\nWHERE {var}.{prop} =~ {val}"
+    # Auto-correct LLM stubbornly reversing observedFor direction
+    cypher = re.sub(
+        r"\((\w+)\)-\[:ns0__observedFor\]->\((\w+):ns0__BenchmarkPrice\)", 
+        r"(\2:ns0__BenchmarkPrice)-[:ns0__observedFor]->(\1)", 
+        cypher
+    )
+    cypher = re.sub(
+        r"\((\w+)\)-\[:ns0__observedFor\]->\((\w+):ns0__TransactionPrice\)", 
+        r"(\2:ns0__TransactionPrice)-[:ns0__observedFor]->(\1)", 
+        cypher
+    )
+    # Auto-correct LLM chaining hasMagnitude to material instead of price node
+    cypher = cypher.replace(")->(m)-[:ns0__hasMagnitude]", ")->(m), (p)-[:ns0__hasMagnitude]")
+    cypher = cypher.replace("]->(m)-[:ns0__hasMagnitude]", "]->(m), (p)-[:ns0__hasMagnitude]")
                     
     # Pattern 2: (var:Label {prop: =~ 'regex'})
     pattern_colon = r"\((\w+):([\w_]+)\s*\{\s*([\w_]+)\s*:\s*=~\s*('[^']+'|\"[^\"]+\")\s*\}\)"

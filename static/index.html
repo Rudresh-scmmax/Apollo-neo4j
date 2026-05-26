@@ -621,13 +621,9 @@
             </div>
 
             <div class="upload-card">
-                <h3>Market Report (PDF)</h3>
-                <p>Upload new ICIS reports for automated ingestion.</p>
-                <div class="file-input-wrapper">
-                    <button class="btn-upload" id="pdf-label">Select .pdf File</button>
-                    <input type="file" id="pdf-upload" accept=".pdf" onchange="updateLabel('pdf-upload', 'pdf-label')">
-                </div>
-                <button class="btn-upload" style="background: var(--primary); color: #000;" onclick="uploadFile('pdf-upload', '/upload/pdf')">INGEST REPORT</button>
+                <h3>Sync from Database</h3>
+                <p>Pull latest prices, news & takeaways from PostgreSQL into the graph.</p>
+                <button class="btn-upload" style="background: var(--primary); color: #000;" onclick="syncFromDatabase()">SYNC NOW</button>
             </div>
         </div>
     </div>
@@ -646,10 +642,12 @@
             <div class="insights-main">
                 <div class="insights-tabs">
                     <button class="tab-btn active" data-tab="prices">Price History</button>
+                    <button class="tab-btn" data-tab="transactions">PO Transactions</button>
                     <button class="tab-btn" data-tab="news">Market News</button>
                     <button class="tab-btn" data-tab="takeaways">Key Takeaways</button>
                 </div>
                 <div class="tab-content active" id="tab-prices"><div id="prices-container"></div></div>
+                <div class="tab-content" id="tab-transactions"><div id="transactions-container"></div></div>
                 <div class="tab-content" id="tab-news"><div id="news-container" class="cards-grid"></div></div>
                 <div class="tab-content" id="tab-takeaways"><div id="takeaways-container" class="takeaways-list"></div></div>
             </div>
@@ -694,8 +692,7 @@
     <div class="chat-container">
         <div id="chat-messages">
             <div class="message bot-message">
-                Hello! I am your Apollo Market Intelligence Assistant. I have access to your Neo4j Knowledge Graph and
-                the latest ICIS reports. How can I help you today?
+                Hello! I am your Apollo Market Intelligence Assistant. I have access to your Neo4j Knowledge Graph with live data from your procurement database. How can I help you today?
             </div>
         </div>
         <div class="input-area">
@@ -813,6 +810,17 @@
             } catch (error) { showNotification("Upload failed: " + error.message); }
         }
 
+        async function syncFromDatabase() {
+            try {
+                showNotification("Starting PSQL → Neo4j sync in background...");
+                const response = await fetch('/api/etl/sync', { method: 'POST' });
+                const result = await response.json();
+                showNotification(result.message || 'Sync started.');
+            } catch (error) {
+                showNotification('Sync trigger failed: ' + error.message);
+            }
+        }
+
         async function loadInventory() {
             const list = document.getElementById('inventory-list');
             list.innerHTML = '<p style="opacity:0.5; text-align:center;">Loading inventory...</p>';
@@ -827,6 +835,7 @@
                         <h4>${item.month}</h4>
                         <div class="inventory-stats">
                             <span>Prices: ${item.prices}</span>
+                            <span>POs: ${item.transactions || 0}</span>
                             <span>News: ${item.news}</span>
                             <span>Points: ${item.takeaways}</span>
                         </div>
@@ -978,6 +987,7 @@
             document.getElementById('selected-month-badge').textContent = month;
             const containers = {
                 prices: document.getElementById('prices-container'),
+                transactions: document.getElementById('transactions-container'),
                 news: document.getElementById('news-container'),
                 takeaways: document.getElementById('takeaways-container')
             };
@@ -987,13 +997,14 @@
                 const data = await response.json();
 
                 if (data.prices.length > 0) {
-                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Price</th><th>UOM</th><th>Region</th><th>Actions</th></tr></thead><tbody>';
+                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Price</th><th>Currency</th><th>UOM</th><th>Region</th><th>Actions</th></tr></thead><tbody>';
                     data.prices.forEach(p => { 
                         html += `<tr>
                             <td>${p.date}</td>
                             <td>${p.material}</td>
-                            <td>${p.price}</td>
-                            <td>${p.uom}</td>
+                            <td>${p.price || '-'}</td>
+                            <td>${p.currency || '-'}</td>
+                            <td>${p.uom || '-'}</td>
                             <td>${p.region || '-'}</td>
                             <td>
                                 <button onclick="openAndValidateNode('${p.uri}')" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; font-family: 'Outfit'; cursor: pointer; transition: all 0.2s;">Validate</button>
@@ -1003,6 +1014,26 @@
                     html += '</tbody></table>';
                     containers.prices.innerHTML = html;
                 } else containers.prices.innerHTML = '<p style="opacity:0.5;">No price data available.</p>';
+
+                // Transaction Prices
+                if (data.transactions && data.transactions.length > 0) {
+                    let html = '<table><thead><tr><th>Date</th><th>Material</th><th>Cost/UOM</th><th>Currency</th><th>Qty</th><th>UOM</th><th>PO No.</th><th>Status</th><th>Supplier</th></tr></thead><tbody>';
+                    data.transactions.forEach(t => {
+                        html += `<tr>
+                            <td>${t.date || '-'}</td>
+                            <td>${t.material || '-'}</td>
+                            <td>${t.price != null ? t.price : '-'}</td>
+                            <td>${t.currency || '-'}</td>
+                            <td>${t.quantity != null ? t.quantity : '-'}</td>
+                            <td>${t.uom || '-'}</td>
+                            <td>${t.po_number || '-'}</td>
+                            <td><span style="padding:2px 8px; border-radius:12px; font-size:0.75rem; background:rgba(16,185,129,0.15); color:#10b981;">${t.status || '-'}</span></td>
+                            <td>${t.supplier || '-'}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    containers.transactions.innerHTML = html;
+                } else containers.transactions.innerHTML = '<p style="opacity:0.5;">No transaction data for this period.</p>';
 
                 if (data.news.length > 0) {
                     let html = '';

@@ -90,11 +90,22 @@ def get_cypher_from_question(question, schema, intent=None):
     1. Only use labels, properties, and relationships explicitly listed in the SCHEMA CONTEXT and VALID GRAPH PATHS above.
     2. DYNAMIC MATERIAL MATCH: 
        - If the user provides a numeric ID, match EXACTLY using `m.ns0__material_id = 'THE_ID'`.
-       - If the user provides a text name, use regex: `m.rdfs__label =~ '(?i).*THE_NAME.*'`.
-       - ALWAYS attach properties to the correct node: Prices/Dates belong to `ns0__BenchmarkPrice` or `ns0__TransactionPrice`. Material ID/Name belongs to `ns0__MaterialRequiredForProduction`.
-    3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties are NOT NULL. 
-    4. MANDATORY OUTPUT FORMAT: You MUST return a JSON object with a single key "query". DO NOT return raw Cypher.
-       Example: {{"query": "MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m:ns0__MaterialRequiredForProduction) WHERE m.rdfs__label =~ '(?i).*THE_MATERIAL.*' AND p.ns0__price IS NOT NULL RETURN p.ns0__price ORDER BY p.ns0__price_date DESC LIMIT 1"}}
+       - If the user provides a text name, use regex match on BOTH label and URI: `(m.rdfs__label =~ '(?i).*THE_NAME.*' OR m.uri =~ '(?i).*THE_NAME.*')`.
+       - IMPORTANT: Some material nodes (like `http://api.stardog.com/Glycerine`) ONLY have labels `Resource` and `owl__NamedIndividual` with NO `rdfs__label` property. Use `(m)` without label constraints and match using both label and URI regex.
+       - Disruption events connect to `ns0__MaterialRequiredForProduction` nodes (e.g. `Glycerine Refined`) which DO have `rdfs__label`. Use label regex for disruption queries.
+    3. MAGNITUDE PRICE VALUE: BenchmarkPrice and TransactionPrice do NOT have a direct price property. The actual numeric price value is in a related `ns1__Magnitude` node. 
+       - You MUST join them using: `(p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)` and retrieve/filter on `mag.ns1__numericValue`.
+    4. DATA DICTIONARY / RELATIONSHIPS:
+       - Benchmark Pricing: `(p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m)` — BenchmarkPrice points TO material (never reversed).
+       - Transaction Pricing (PO prices): `(s:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m)` and `(s)-[:ns0__hasTransactionPrice]->(t:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`.
+       - Disruptions & News Events: `(e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m)` or `(e:ns0__ForceMajeureEvent)-[:ns0__affectsMaterial]->(m)`. (Do NOT use `ns0__MarketEvent`). Dates: `(e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent)`. Use `toString(te.ns1__startDateTime) >= 'YYYY-MM-DD'` for date filtering.
+       - Assertions/Takeaways: `(a:ns0__Assertion)-[:ns0__isAbout]->(m)`
+       - Pricing Locations: CRITICAL — `(p:ns0__BenchmarkPrice)-[:ns0__applicableLocation]->(geo:ns1__GeoLocation)`. Node label is `ns1__GeoLocation` NOT `ns1__GeoRegion`. If location filtering returns 0 results, remove the location clause.
+       - Disruption Locations: `(e)-[:ns0__hasLocation]->(loc:ns1__GeoRegion)` — disruption events use `ns1__GeoRegion`.
+    5. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to filter out NULLs. 
+    6. NO DOUBLE WHERE CLAUSES: Use comma-separated MATCH patterns and a single WHERE clause with AND conditions.
+    7. MANDATORY OUTPUT FORMAT: You MUST return a JSON object with a single key "query". DO NOT return raw Cypher.
+       Example: {{"query": "MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m) WHERE (m.rdfs__label =~ '(?i).*Glycerine.*' OR m.uri =~ '(?i).*Glycerine.*') MATCH (p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude) WHERE p.ns0__price_date IS NOT NULL RETURN p.ns0__price_date as date, mag.ns1__numericValue as price ORDER BY date DESC LIMIT 1"}}
     """
 
     

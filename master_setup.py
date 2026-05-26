@@ -1,5 +1,4 @@
 import import_ontology
-import process_pdf_to_neo4j
 import setup_vector_index
 from neo4j import GraphDatabase
 import os

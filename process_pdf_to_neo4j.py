@@ -1,5 +1,18 @@
+"""
+DEPRECATED: This module has been replaced by the PostgreSQL → Neo4j ETL pipeline.
+Data ingestion is now handled by relational_to_graph_etl.py via etl_pipeline.py.
+
+- Market intelligence takeaways → sourced from material_research_reports table
+- Benchmark prices             → sourced from price_history_data table
+- News/disruptions             → sourced from news_insights table
+- Transaction prices           → sourced from purchase_history_transactional_data table
+
+PDF upload endpoint (POST /upload/pdf) has also been removed from app.py.
+Use POST /api/etl/sync to trigger a fresh PSQL → Neo4j sync.
+"""
 import sys
 import os
+
 import json
 import logging
 import hashlib
