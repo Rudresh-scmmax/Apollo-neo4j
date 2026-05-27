@@ -2,6 +2,7 @@ import os
 import json
 import boto3
 import re
+from langchain_neo4j import Neo4jChatMessageHistory
 
 # === AWS Bedrock Setup ===
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
@@ -164,6 +165,44 @@ def invoke_bedrock_chat(system_msg, user_content, temperature=0.5):
     except Exception as e:
         return f"Chat error: {e}"
 
+def rewrite_query_with_context(user_query, session_id, neo4j_uri, neo4j_auth):
+    """
+    Rewrites a follow-up query using the conversational history stored in Neo4j.
+    """
+    try:
+        history = Neo4jChatMessageHistory(
+            url=neo4j_uri,
+            username=neo4j_auth[0],
+            password=neo4j_auth[1],
+            session_id=session_id
+        )
+        
+        # Get last 6 messages (3 turns)
+        messages = history.messages[-6:]
+        if not messages:
+            return user_query # No history, return as is
+            
+        history_text = "\n".join([f"{m.type.capitalize()}: {m.content}" for m in messages])
+        
+        system_msg = f"""
+        You are an intelligent query rewriter. Your job is to take a follow-up question and rewrite it into a fully self-contained question using the conversational history.
+        
+        CRITICAL RULES:
+        1. Do NOT answer the question. ONLY output the rewritten query string.
+        2. If the user's query is already self-contained, mentions a specific material (e.g., 'Acetic Acid'), or is a complete change of topic, you MUST return it EXACTLY as is. Do NOT merge it with the history.
+        3. ONLY rewrite if the query contains a pronoun (e.g., 'it', 'they') or is clearly a vague follow-up (e.g., 'What about transaction prices?', 'Any news?'). In this case, inject the missing entity from the history.
+        
+        HISTORY:
+        {history_text}
+        """
+        
+        rewritten = invoke_bedrock_chat(system_msg, user_query, temperature=0.0)
+        # Fallback: if the LLM completely ignored us and output something totally different but the query was already specific, we should ideally catch it, but returning the output is fine for now.
+        return rewritten.strip(' "\'')
+    except Exception as e:
+        print(f"Query rewrite failed: {e}")
+        return user_query
+
 def price_by_date_agent(extracted_text, material):
     """
     Extracts price data by date.
@@ -197,6 +236,19 @@ def generate_cypher(question, schema, intent=None):
         else:
             semantic_rules_str = "    4. DYNAMIC SEMANTIC RULES: None specific for this intent. Use schema below."
 
+    # Build dynamic few-shot examples from live database entities
+    samples = schema.get('sample_entities', {})
+    s_name = samples.get('supplier', 'SupplierX')
+    m_name = samples.get('material', 'MaterialY')
+    p_name = samples.get('plant', 'PlantZ')
+
+    dynamic_examples = f"""       Example 1 (Pricing/Highest Price): MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m), (p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude) WHERE (m.rdfs__label =~ '(?i).*{m_name}.*' OR m.uri =~ '(?i).*{m_name}.*') AND p.ns0__price_date IS NOT NULL RETURN p.ns0__price_date as date, mag.ns1__numericValue as price ORDER BY price DESC LIMIT 1
+       Example 2 (Supplier Capacity - specific supplier): MATCH (sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m) WHERE sup.rdfs__label =~ '(?i).*{s_name}.*' RETURN sum(rel.ns0__capacity) as capacity
+       Example 3 (Supplier Capacity - specific supplier + material): MATCH (sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m) WHERE sup.rdfs__label =~ '(?i).*{s_name}.*' AND (m.rdfs__label =~ '(?i).*{m_name}.*' OR m.uri =~ '(?i).*{m_name}.*') RETURN sum(rel.ns0__capacity) as capacity
+       Example 4 (Plants Supplying a destination - ONLY join ProcurementSummary when filtering by plant): MATCH (sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant), (ps)-[:ns0__procuredMaterial]->(m), (sup)-[rel:ns0__suppliesMaterial]->(m) WHERE pl.rdfs__label =~ '(?i).*{p_name}.*' AND (m.rdfs__label =~ '(?i).*{m_name}.*' OR m.uri =~ '(?i).*{m_name}.*') RETURN sum(rel.ns0__capacity) as capacity
+       Example 5 (Comparing benchmark vs transaction price - minimum/maximum difference, aligned by month): MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m), (p)-[:ns0__hasMagnitude]->(p_mag:ns1__Magnitude), (s:ns0__ProcurementSummary)-[:ns0__procuredMaterial]->(m), (s)-[:ns0__hasTransactionPrice]->(t:ns0__TransactionPrice)-[:ns0__hasMagnitude]->(t_mag:ns1__Magnitude) WHERE (m.rdfs__label =~ '(?i).*{m_name}.*' OR m.uri =~ '(?i).*{m_name}.*') AND p.ns0__price_date >= '2024-01-01' AND p.ns0__price_date <= '2025-12-31' AND t.ns0__price_date IS NOT NULL AND p_mag.ns1__numericValue IS NOT NULL AND t_mag.ns1__numericValue IS NOT NULL AND substring(p.ns0__price_date, 0, 7) = substring(t.ns0__price_date, 0, 7) WITH p.ns0__price_date as date, p_mag.ns1__numericValue as benchmark_price, avg(t_mag.ns1__numericValue) as avg_transaction_price RETURN date, benchmark_price, avg_transaction_price, abs(benchmark_price - avg_transaction_price) as price_diff ORDER BY price_diff ASC LIMIT 1
+       CRITICAL FOR PRICE COMPARISON: ALWAYS align benchmark and transaction prices by the same MONTH using `substring(p.ns0__price_date, 0, 7) = substring(t.ns0__price_date, 0, 7)`. Never do a raw cross-join. Use `WITH` to compute `avg(t_mag.ns1__numericValue)` per benchmark month before computing the diff.
+       CRITICAL: Do NOT join with ProcurementSummary or PurchaserPlant when asking about a specific supplier's capacity. ProcurementSummary creates cartesian products (duplicating capacity values) because a supplier may have multiple POs. Only join ProcurementSummary when the question explicitly asks about deliveries to a specific PLANT/LOCATION."""
 
     system_msg = f"""
     You are a Neo4j Cypher Expert. Your task is to generate a Cypher query to answer the user's question.
@@ -224,12 +276,21 @@ def generate_cypher(question, schema, intent=None):
     3. DYNAMIC NULL FILTERING: When the user asks for 'latest', 'recent', or specific values, ALWAYS add a `WHERE` clause to ensure the relevant properties (e.g. `p.ns0__price_date`, `mag.ns1__numericValue`) are NOT NULL.
 {semantic_rules_str}
     5. NO DOUBLE WHERE CLAUSES: Never generate a query containing the `WHERE` keyword twice. Declare all paths in the MATCH clause (separated by commas) and put all conditions in a single WHERE clause using AND.
-       - Example for disruptions: MATCH (e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m), (e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent) WHERE m.rdfs__label =~ '(?i).*Glycerine.*' AND toString(te.ns1__startDateTime) >= '2024-01-01' AND toString(te.ns1__endDateTime) <= '2024-12-31' RETURN e.rdfs__label as event, te.ns1__startDateTime as start_date, te.ns1__endDateTime as end_date
+       - Example for disruptions: MATCH (e:ns0__SupplyDisruptionEvent)-[:ns0__affectsMaterial]->(m), (e)-[:ns0__hasTemporalExtent]->(te:ns1__TemporalExtent) WHERE m.rdfs__label =~ '(?i).*{m_name}.*' AND toString(te.ns1__startDateTime) >= '2024-01-01' AND toString(te.ns1__endDateTime) <= '2024-12-31' RETURN e.rdfs__label as event, te.ns1__startDateTime as start_date, te.ns1__endDateTime as end_date
     6. OUTPUT FORMAT: OUTPUT ONLY THE CYPHER QUERY. NO PREAMBLE. NO EXPLANATION. NO CHATTER. DO NOT format as JSON.
     7. MATCH VS WHERE SYNTAX: ALL graph traversal relationships (like `(p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude)`) MUST go in the MATCH clause separated by commas. NEVER place a relationship path inside a WHERE clause. The WHERE clause is strictly for properties.
-       Example 1 (Pricing/Highest Price): MATCH (p:ns0__BenchmarkPrice)-[:ns0__observedFor]->(m), (p)-[:ns0__hasMagnitude]->(mag:ns1__Magnitude) WHERE (m.rdfs__label =~ '(?i).*Glycerine.*' OR m.uri =~ '(?i).*Glycerine.*') AND p.ns0__price_date IS NOT NULL RETURN p.ns0__price_date as date, mag.ns1__numericValue as price ORDER BY price DESC LIMIT 1
-       Example 2 (Godrej Capacity): MATCH (sup:ns0__Supplier)-[rel:ns0__suppliesMaterial]->(m) WHERE sup.rdfs__label =~ '(?i).*Godrej.*' RETURN sum(rel.ns0__capacity) as capacity
-       Example 3 (Plants Supplying Mundra): MATCH (sup:ns0__Supplier)<-[:ns0__providedBy]-(ps:ns0__ProcurementSummary)-[:ns0__deliveredTo]->(pl:ns0__PurchaserPlant), (ps)-[:ns0__procuredMaterial]->(m), (sup)-[rel:ns0__suppliesMaterial]->(m) WHERE pl.rdfs__label =~ '(?i).*Mundra.*' AND (m.rdfs__label =~ '(?i).*Glycerine.*' OR m.uri =~ '(?i).*Glycerine.*') RETURN sum(rel.ns0__capacity) as capacity
+{dynamic_examples}
+    8. CYPHER SYNTAX RULES (CRITICAL):
+       - DO NOT use Python-style comments (`#`). If you must comment, use Cypher-style `//`.
+       - DO NOT write multiple `RETURN` statements in a single block. All variables must be returned in ONE single `RETURN` clause at the very end of the query.
+       - A Cypher query MUST always conclude with a RETURN clause. NEVER conclude a query with a WITH clause. Always place a RETURN clause at the very end of the query to output the results.
+       - NEVER use invalid time arithmetic like `183 days`. Use standard Neo4j duration functions like `duration('P6M')` for 6 months.
+       - For dynamic date calculations relative to today, use `date() - duration('P6M')` or similar. Convert string date properties (like `p.ns0__price_date`) using `date()` before comparing them with other dates, for example: `WHERE date(p.ns0__price_date) >= date() - duration('P6M')`. Do NOT subtract a duration from `timestamp()`, and do NOT compare `DateTime` objects with `Long` timestamps.
+       - PLACE OPTIONAL MATCH CLAUSES CORRECTLY: OPTIONAL MATCH clauses MUST come AFTER the main WHERE clause of the query. Writing a WHERE clause immediately after an OPTIONAL MATCH clause scopes that WHERE clause strictly to the OPTIONAL MATCH, which will NOT filter the main MATCH results!
+         - Incorrect: MATCH (n) OPTIONAL MATCH (n)-[:rel]->(m) WHERE n.prop = 'val'
+         - Correct: MATCH (n) WHERE n.prop = 'val' OPTIONAL MATCH (n)-[:rel]->(m)
+       - A Cypher query MUST be a single unified query. DO NOT output multiple independent MATCH/RETURN blocks sequentially. If you need to search multiple patterns or event types (e.g., both supply disruptions and force majeure events for a company), you MUST combine them using `UNION` (ensuring every subquery has exactly the same column name returns in the same order) or chain them using `OPTIONAL MATCH`.
+       - When matching companies or suppliers rather than materials, do not match them as materials. Use `ns0__Supplier` nodes (e.g., `(sup:ns0__Supplier) WHERE sup.rdfs__label =~ '(?i).*{s_name}.*'`). If searching assertions or reports for a company generally, search in the assertion's text itself: `MATCH (a:ns0__Assertion) WHERE a.rdfs__label =~ '(?i).*{s_name}.*' OR a.ns0__snippetEvidence =~ '(?i).*{s_name}.*' OPTIONAL MATCH (a)-[:ns0__assertedIn]->(r) RETURN a.rdfs__label as assertion, a.ns0__snippetEvidence as evidence, r.rdfs__label as report`.
     """
     
     # We use a lower temperature for code generation

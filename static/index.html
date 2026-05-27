@@ -583,6 +583,102 @@
             z-index: 3000;
             animation: fadeIn 0.3s ease-out;
         }
+
+        .session-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            background: transparent;
+        }
+
+        .session-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .session-item.active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .session-item.active .session-title {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .session-title {
+            flex: 1;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: #aaa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 8px;
+        }
+
+        .session-title:hover {
+            color: #fff;
+        }
+
+        .session-delete-btn {
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 0.85rem;
+            color: #ef4444;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .session-item:hover .session-delete-btn {
+            opacity: 0.7;
+        }
+
+        .session-delete-btn:hover {
+            opacity: 1 !important;
+            transform: scale(1.2);
+        }
+
+        .clear-chats-btn {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .clear-chats-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: #ef4444;
+            color: #f87171;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .clear-chats-btn:active {
+            transform: scale(0.98);
+        }
+
+        #session-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #session-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
     </style>
 </head>
 
@@ -593,6 +689,7 @@
     <header>
         <div class="logo">APOLLO</div>
         <div style="display: flex; align-items: center; gap: 1rem;">
+            <button class="mgmt-btn-trigger" id="new-chat-btn" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border-color: #10b981;">NEW CHAT</button>
             <button class="mgmt-btn-trigger" id="debug-btn" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border-color: #8b5cf6;">DEBUG LOGS</button>
             <button class="mgmt-btn-trigger" id="mgmt-btn">DATABASE MGMT</button>
             <button class="mgmt-btn-trigger" id="insights-btn" style="background: var(--primary); color: #000;">INSIGHTS DASHBOARD</button>
@@ -705,7 +802,23 @@
 
     <div id="notification" class="notification"></div>
 
-    <div class="chat-container">
+    <div style="display: flex; flex: 1; overflow: hidden; max-width: 1400px; margin: 0 auto; width: 100%;">
+        <!-- Sidebar -->
+        <div style="width: 260px; padding: 2rem 1rem; display: flex; flex-direction: column; justify-content: space-between; margin: 2rem 0; background: rgba(255,255,255,0.01); border-right: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+            <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden; gap: 1rem;">
+                <div style="font-family: 'Outfit'; color: #a78bfa; font-size: 0.8rem; letter-spacing: 1px; padding: 0 1rem; flex-shrink: 0;">CHAT HISTORY</div>
+                <div id="session-list" style="display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; flex: 1; padding-right: 4px;">
+                    <!-- populate here -->
+                </div>
+            </div>
+            <div style="padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.05); flex-shrink: 0;">
+                <button class="clear-chats-btn" onclick="clearAllChats()">
+                    🗑️ CLEAR ALL CHATS
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-container" style="margin: 2rem; max-width: none;">
         <div id="chat-messages">
             <div class="message bot-message">
                 Hello! I am your Apollo Market Intelligence Assistant. I have access to your Neo4j Knowledge Graph with live data from your procurement database. How can I help you today?
@@ -721,12 +834,133 @@
             </button>
         </div>
     </div>
+    </div>
 
     <script>
+        function generateUUID() {
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
         const messagesContainer = document.getElementById('chat-messages');
         const userInput = document.getElementById('user-input');
         const loader = document.getElementById('loader');
         const sendBtn = document.getElementById('send-btn');
+        
+        // Session Management
+        let currentSessionId = generateUUID();
+        
+        document.getElementById('new-chat-btn').addEventListener('click', () => {
+            currentSessionId = generateUUID();
+            messagesContainer.innerHTML = `
+                <div class="message bot-message">
+                    Hello! I am your Apollo Market Intelligence Assistant. Started a new conversation. How can I help you today?
+                </div>
+            `;
+            showNotification("Started a new chat session.");
+            loadSessions(); // refresh the list
+            if (debugPanel.style.right === '0px' || debugPanel.style.right === '0') {
+                fetchDebugLogs();
+            }
+        });
+
+        async function loadSessions() {
+            try {
+                const res = await fetch('/chat/sessions');
+                const data = await res.json();
+                const sessionList = document.getElementById('session-list');
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    let html = '';
+                    data.sessions.forEach((s) => {
+                        const title = s.title;
+                        const isActive = s.id === currentSessionId;
+                        html += `
+                            <div class="session-item ${isActive ? 'active' : ''}">
+                                <span class="session-title" onclick="loadSessionHistory('${s.id}')" title="${s.title}\n(${s.id})">
+                                    ${title}
+                                </span>
+                                <span class="session-delete-btn" onclick="deleteSession('${s.id}', event)" title="Delete Chat">
+                                    ✕
+                                </span>
+                            </div>
+                        `;
+                    });
+                    sessionList.innerHTML = html;
+                } else {
+                    sessionList.innerHTML = '';
+                }
+            } catch(e) {
+                console.error("Failed to load sessions", e);
+            }
+        }
+
+        async function deleteSession(sessionId, event) {
+            if (event) event.stopPropagation();
+            if (!confirm("Are you sure you want to delete this chat session?")) return;
+            try {
+                const res = await fetch(`/chat/session/${sessionId}`, { method: 'DELETE' });
+                const data = await res.json();
+                showNotification(data.message || "Session deleted.");
+                if (sessionId === currentSessionId) {
+                    document.getElementById('new-chat-btn').click();
+                } else {
+                    loadSessions();
+                }
+            } catch (e) {
+                console.error("Failed to delete session", e);
+                showNotification("Error deleting session: " + e.message);
+            }
+        }
+
+        async function clearAllChats() {
+            if (!confirm("Are you sure you want to clear all chat history? This action is permanent and cannot be undone.")) return;
+            try {
+                const res = await fetch('/chat/sessions', { method: 'DELETE' });
+                const data = await res.json();
+                showNotification(data.message || "All chat history cleared.");
+                
+                // Reset active session and start a new chat
+                document.getElementById('new-chat-btn').click();
+            } catch (e) {
+                console.error("Failed to clear all chats", e);
+                showNotification("Error clearing chats: " + e.message);
+            }
+        }
+
+        async function loadSessionHistory(sessionId) {
+            try {
+                currentSessionId = sessionId;
+                messagesContainer.innerHTML = '<div style="text-align:center; padding:2rem; opacity:0.5;">Loading history...</div>';
+                
+                const res = await fetch(`/chat/history/${sessionId}`);
+                const data = await res.json();
+                
+                messagesContainer.innerHTML = '';
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        const className = msg.role === 'human' ? 'user-message' : 'bot-message';
+                        addMessage(msg.content, className);
+                    });
+                } else {
+                    messagesContainer.innerHTML = `<div class="message bot-message">Hello! I am your Apollo Market Intelligence Assistant. Started a new conversation. How can I help you today?</div>`;
+                }
+                loadSessions(); // Re-render to highlight active
+                if (debugPanel.style.right === '0px' || debugPanel.style.right === '0') {
+                    await fetchDebugLogs();
+                }
+            } catch(e) {
+                messagesContainer.innerHTML = `<div style="color:#ef4444; padding:2rem; text-align:center;">Failed to load history: ${e.message}</div>`;
+            }
+        }
+        
+        // Initial Load
+        loadSessions();
 
         const mgmtPanel = document.getElementById('mgmt-panel');
         const mgmtBtn = document.getElementById('mgmt-btn');
@@ -777,17 +1011,16 @@
 
         async function fetchDebugLogs() {
             try {
-                const res = await fetch('/logs');
+                const res = await fetch(`/chat/logs/${currentSessionId}`);
                 const logs = await res.json();
                 
-                if (logs.length === 0) {
-                    debugContainer.innerHTML = '<div style="text-align: center; opacity: 0.5; margin-top: 2rem;">No logs available yet. Ask a question!</div>';
+                if (!logs || logs.length === 0) {
+                    debugContainer.innerHTML = '<div style="text-align: center; opacity: 0.5; margin-top: 2rem;">No logs available yet for this chat. Ask a question!</div>';
                     return;
                 }
                 
                 let html = '';
                 logs.forEach((log, index) => {
-                    const time = new Date(log.timestamp).toLocaleTimeString();
                     html += `
                         <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
@@ -817,6 +1050,7 @@
                 debugContainer.innerHTML = html;
             } catch (e) {
                 console.error("Failed to fetch logs", e);
+                debugContainer.innerHTML = '<div style="text-align: center; color: red; margin-top: 2rem;">Error fetching logs.</div>';
             }
         }
 
@@ -833,7 +1067,7 @@
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: query })
+                    body: JSON.stringify({ query: query, session_id: currentSessionId })
                 });
                 const data = await response.json();
                 addMessage(data.response, 'bot-message');
@@ -842,6 +1076,10 @@
             } finally {
                 loader.style.display = 'none';
                 sendBtn.disabled = false;
+                loadSessions(); // Reload sidebar to display updated titles/chronological order
+                if (debugPanel.style.right === '0px' || debugPanel.style.right === '0') {
+                    await fetchDebugLogs();
+                }
             }
         }
 

@@ -12,6 +12,8 @@ import etl_pipeline
 from schema_utils import get_graph_schema
 from intent_system import IntentSystem
 from datetime import datetime
+from langchain_neo4j import Neo4jChatMessageHistory
+import uuid
 
 # Global debug logs array
 chat_logs = []
@@ -29,12 +31,20 @@ app.add_middleware(
 NEO4J_URI = "bolt://44.202.98.128:7687"
 NEO4J_AUTH = ("neo4j", "neo4j@123")
 
-def run_dynamic_query(question):
+def run_dynamic_query(question, session_id="default"):
     from retrieval_validator import RetrievalValidator
     from context_compactor import ContextCompactor
     from agent_architectures import MultiAgentClassifier
+    from llm_module import rewrite_query_with_context
     
     driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+    
+    # 0. Contextual Rewrite
+    original_question = question
+    print(f"[*] Original Question: {original_question}")
+    question = rewrite_query_with_context(original_question, session_id, NEO4J_URI, NEO4J_AUTH)
+    if question != original_question:
+        print(f"[*] Rewritten Question: {question}")
     
     # 1. Get Schema
     schema = get_graph_schema(driver)
@@ -142,24 +152,65 @@ def run_dynamic_query(question):
         debug_log = {
             "timestamp": datetime.utcnow().isoformat(),
             "question": question,
+            "original_question": original_question,
             "intent": intent_obj.get("primary_intent", "GENERAL"),
             "intent_extraction": intent_obj,
             "cypher": cypher,
             "response": compacted
         }
         
+        # 9. Save to Neo4j Chat History
+        try:
+            history = Neo4jChatMessageHistory(
+                url=NEO4J_URI,
+                username=NEO4J_AUTH[0],
+                password=NEO4J_AUTH[1],
+                session_id=session_id
+            )
+            history.add_user_message(original_question)
+            history.add_ai_message(compacted)
+            
+            # Save the debug log as a property on the last AI message
+            with driver.session() as custom_sess:
+                custom_sess.run("""
+                    MATCH (s:Session {id: $session_id})-[:LAST_MESSAGE]->(m:Message {role: 'ai'})
+                    SET m.debug_log = $debug_log
+                """, session_id=session_id, debug_log=json.dumps(debug_log))
+        except Exception as hist_e:
+            print(f"Failed to save chat history: {hist_e}")
+        
         return compacted, debug_log
 
     except Exception as e:
         print(f"run_dynamic_query failed: {e}")
         err_msg = f"System Error: {e}"
-        return err_msg, {
+        err_log = {
             "timestamp": datetime.utcnow().isoformat(),
-            "question": question,
+            "question": original_question if 'original_question' in locals() else question,
             "intent": "ERROR",
             "cypher": "NONE",
             "response": err_msg
         }
+        try:
+            history = Neo4jChatMessageHistory(
+                url=NEO4J_URI,
+                username=NEO4J_AUTH[0],
+                password=NEO4J_AUTH[1],
+                session_id=session_id
+            )
+            history.add_user_message(original_question if 'original_question' in locals() else question)
+            history.add_ai_message(err_msg)
+            
+            with GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH) as d:
+                with d.session() as custom_sess:
+                    custom_sess.run("""
+                        MATCH (s:Session {id: $session_id})-[:LAST_MESSAGE]->(m:Message {role: 'ai'})
+                        SET m.debug_log = $debug_log
+                    """, session_id=session_id, debug_log=json.dumps(err_log))
+        except Exception as hist_e:
+            print(f"Failed to save error chat history: {hist_e}")
+            
+        return err_msg, err_log
     finally:
         driver.close()
 
@@ -310,21 +361,146 @@ async def chat(request: Request):
     try:
         data = await request.json()
         user_query = data.get("query", "")
+        session_id = data.get("session_id", "default")
         
         if not user_query:
             return {"response": "Please provide a query."}
         
         # 1. Dynamic Retrieval & Synthesis (Handled internally by Multi-Agent system)
-        final_response, debug_log = run_dynamic_query(user_query)
+        final_response, debug_log = run_dynamic_query(user_query, session_id)
         
         chat_logs.insert(0, debug_log)
         if len(chat_logs) > 50:
             chat_logs.pop()
         
-        return {"response": final_response}
+        return {"response": final_response, "session_id": session_id}
         
     except Exception as e:
         return {"response": f"Backend error: {str(e)}"}
+
+@app.get("/chat/history/{session_id}")
+async def get_chat_history(session_id: str):
+    try:
+        history = Neo4jChatMessageHistory(
+            url=NEO4J_URI,
+            username=NEO4J_AUTH[0],
+            password=NEO4J_AUTH[1],
+            session_id=session_id
+        )
+        # Format for frontend
+        messages = []
+        for msg in history.messages:
+            messages.append({
+                "role": msg.type,
+                "content": msg.content
+            })
+        return {"messages": messages}
+    except Exception as e:
+        return {"error": str(e), "messages": []}
+
+@app.get("/chat/sessions")
+async def get_chat_sessions():
+    """
+    Get unique session IDs and titles from Neo4j memory, ordered chronologically.
+    """
+    try:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+        with driver.session() as session:
+            # Match sessions, their latest message timestamp, and their first human question
+            query = """
+                MATCH (s:Session)
+                OPTIONAL MATCH (s)-[:LAST_MESSAGE]->(latest:Message)
+                OPTIONAL MATCH (latest)<-[:NEXT*0..100]-(msg:Message {role: 'human'})
+                WITH s, latest, msg
+                ORDER BY msg.createdAt ASC
+                WITH s, latest, head(collect(msg.content)) as first_question
+                ORDER BY latest.createdAt DESC
+                RETURN s.id as session_id, first_question
+                LIMIT 50
+            """
+            res = session.run(query)
+            sessions = []
+            for r in res:
+                sid = r["session_id"]
+                fq = r["first_question"]
+                
+                title = fq
+                if title:
+                    title = title.strip()
+                    if len(title) > 28:
+                        title = title[:25] + "..."
+                else:
+                    title = "General Chat" if sid == "default" else f"New Chat {sid[:6]}"
+                
+                sessions.append({
+                    "id": sid,
+                    "title": title
+                })
+            
+            # If empty, return at least a default session
+            if not sessions:
+                sessions = [{"id": "default", "title": "General Chat"}]
+            return {"sessions": sessions}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e), "sessions": [{"id": "default", "title": "General Chat"}]})
+
+@app.delete("/chat/session/{session_id}")
+async def delete_chat_session(session_id: str):
+    try:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+        with driver.session() as session:
+            session.run("""
+                MATCH (s:Session {id: $session_id})
+                OPTIONAL MATCH (s)-[:LAST_MESSAGE]->(latest:Message)
+                OPTIONAL MATCH (latest)<-[:NEXT*0..100]-(msg:Message)
+                DETACH DELETE s, latest, msg
+            """, session_id=session_id)
+        return {"status": "success", "message": f"Chat session {session_id} deleted successfully."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"Failed to delete session: {str(e)}"})
+
+@app.delete("/chat/sessions")
+async def delete_all_chat_sessions():
+    try:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+        with driver.session() as session:
+            session.run("""
+                MATCH (s:Session)
+                OPTIONAL MATCH (s)-[:LAST_MESSAGE]->(latest:Message)
+                OPTIONAL MATCH (latest)<-[:NEXT*0..100]-(msg:Message)
+                DETACH DELETE s, latest, msg
+            """)
+            session.run("""
+                MATCH (m:Message)
+                DETACH DELETE m
+            """)
+        return {"status": "success", "message": "All chat sessions and messages deleted successfully."}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"Failed to clear chats: {str(e)}"})
+
+@app.get("/chat/logs/{session_id}")
+async def get_session_logs(session_id: str):
+    try:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
+        with driver.session() as session:
+            res = session.run("""
+                MATCH (s:Session {id: $session_id})
+                OPTIONAL MATCH (s)-[:LAST_MESSAGE]->(latest:Message)
+                OPTIONAL MATCH (latest)<-[:NEXT*0..100]-(msg:Message {role: 'ai'})
+                WHERE msg.debug_log IS NOT NULL
+                RETURN msg.debug_log as debug_log, msg.createdAt as createdAt
+                ORDER BY createdAt DESC
+            """, session_id=session_id)
+            logs = []
+            for r in res:
+                if r["debug_log"]:
+                    try:
+                        logs.append(json.loads(r["debug_log"]))
+                    except Exception:
+                        pass
+            return logs
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/logs")
 async def get_logs():

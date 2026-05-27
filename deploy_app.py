@@ -32,8 +32,18 @@ def upload_file(local_path, remote_path):
     
     # Use base64 to avoid escaping issues
     b64_content = base64.b64encode(content.encode()).decode()
-    cmd = f"echo '{b64_content}' | base64 -d > {remote_path}"
-    return send_command(cmd, f"Uploading {local_path} to {remote_path}")
+    
+    chunk_size = 40000
+    chunks = [b64_content[i:i+chunk_size] for i in range(0, len(b64_content), chunk_size)]
+    
+    for i, chunk in enumerate(chunks):
+        mode = ">" if i == 0 else ">>"
+        cmd = f"echo -n '{chunk}' {mode} {remote_path}.b64"
+        cmd_id = send_command(cmd, f"Uploading {local_path} (chunk {i+1}/{len(chunks)}) to {remote_path}.b64")
+        wait_for_command(cmd_id)
+        
+    cmd = f"base64 -d {remote_path}.b64 > {remote_path} && rm {remote_path}.b64"
+    return send_command(cmd, f"Decoding {remote_path}")
 
 def deploy():
     print("--- Starting Remote Deployment ---")
@@ -48,12 +58,19 @@ def deploy():
         ("llm_module.py", "/home/ubuntu/apollo/llm_module.py"),
         ("schema_utils.py", "/home/ubuntu/apollo/schema_utils.py"),
         ("intent_system.py", "/home/ubuntu/apollo/intent_system.py"),
+        ("semantic_layer.json", "/home/ubuntu/apollo/semantic_layer.json"),
         ("etl_pipeline.py", "/home/ubuntu/apollo/etl_pipeline.py"),
+        ("relational_to_graph_etl.py", "/home/ubuntu/apollo/relational_to_graph_etl.py"),
+        ("agent_architectures.py", "/home/ubuntu/apollo/agent_architectures.py"),
+        ("context_compactor.py", "/home/ubuntu/apollo/context_compactor.py"),
+        ("retrieval_validator.py", "/home/ubuntu/apollo/retrieval_validator.py"),
         ("import_ontology.py", "/home/ubuntu/apollo/import_ontology.py"),
         ("process_pdf_to_neo4j.py", "/home/ubuntu/apollo/process_pdf_to_neo4j.py"),
         ("setup_vector_index.py", "/home/ubuntu/apollo/setup_vector_index.py"),
         ("static/index.html", "/home/ubuntu/apollo/static/index.html"),
-        ("requirements.txt", "/home/ubuntu/apollo/requirements.txt")
+        ("requirements.txt", "/home/ubuntu/apollo/requirements.txt"),
+        ("shapes.ttl", "/home/ubuntu/apollo/shapes.ttl"),
+        ("apollo5.ttl", "/home/ubuntu/apollo/apollo5.ttl")
     ]
     
     for local, remote in files_to_upload:
@@ -66,7 +83,7 @@ def deploy():
     sudo apt-get update
     sudo apt-get install -y python3-pip
     pip3 install -r requirements.txt
-    sudo fuser -k 8000/tcp || true
+    sudo pkill -f uvicorn || true
     nohup uvicorn app:app --host 0.0.0.0 --port 8000 > /home/ubuntu/apollo/app.log 2>&1 &
     """
     send_command(launch_cmd, "Installing dependencies and starting server")

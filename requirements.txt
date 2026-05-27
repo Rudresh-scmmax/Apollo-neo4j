@@ -6,3 +6,6 @@ python-multipart
 jinja2
 aiofiles
 pymupdf
+langchain
+langchain-community
+langchain-neo4j

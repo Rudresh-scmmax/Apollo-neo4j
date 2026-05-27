@@ -89,14 +89,32 @@ class IntentSystem:
         You are an Intent Aggregator. You have the results from several specialized classification agents.
         Your job is to produce a single, coherent, and structured final intent object.
         
+        CRITICAL RULES FOR INTENTS:
+        The "primary_intent" and "secondary_intents" MUST be selected EXACTLY from this list:
+        - "price_check": Finding specific price points (e.g., price on a date, latest price, min/max price, comparison to a static threshold).
+        - "price_trend": Analyzing price trends or trends over time (e.g., 6 months trend).
+        - "price_comparison": Comparing prices (e.g., benchmark vs transaction/purchase price, average comparisons, differences).
+        - "uom_inquiry": Asking about UOM or units.
+        - "capacity_inquiry": Inquiring about plant capacity or supplier capacity.
+        - "list_plants": Listing plants receiving POs or materials.
+        - "news_search": Searching for news, events, or logistics updates.
+        - "disruption_check": Checking for supply disruptions or incidents.
+        - "force_majeure_check": Checking for force majeure events.
+        - "logistics_update": Checking for logistics, ports, or shipping issues.
+        - "event_summary": Summarizing events or disruptions.
+        - "takeaway_retrieval": Retrieving key takeaways or findings from reports.
+        - "assertion_search": Searching for assertions or intelligence reports.
+        - "trend_summary": Summarizing research/assertion trends.
+        - "market outlook summary": Summarizing market outlook.
+        
         Return ONLY a JSON object:
         {
-            "primary_intent": "...",
+            "primary_intent": "price_comparison",
             "secondary_intents": [],
             "entities": {
-                "materials": [],
+                "materials": ["Glycerine"],
                 "regions": [],
-                "timeframe": ""
+                "timeframe": "2024"
             },
             "summary": "Short explanation of the intent"
         }
