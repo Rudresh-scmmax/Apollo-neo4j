@@ -771,32 +771,101 @@
     <div class="insights-panel" id="shacl-panel">
         <div class="insights-header">
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <h2 style="margin:0; font-family: 'Outfit'; letter-spacing: 1px; color: #ef4444;">SHACL VALIDATION</h2>
-                <div id="validation-scope-badge" class="month-badge" style="background: #ef4444; color: #fff;">Full Graph</div>
+                <h2 style="margin:0; font-family: 'Outfit'; letter-spacing: 1px; color: #ef4444;">🛡️ DATA QUALITY — SHACL</h2>
+                <div id="validation-scope-badge" class="month-badge" style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4);">Full Graph</div>
             </div>
             <button class="close-mgmt" id="shacl-close" style="font-size: 1.5rem;">&times;</button>
         </div>
-        <div class="insights-layout" style="flex-direction: column; padding: 2rem 3rem; overflow-y: auto;">
-            <!-- Top Controls -->
-            <div style="display: flex; gap: 1.5rem; margin-bottom: 2rem; align-items: center; flex-wrap: wrap;">
-                <button onclick="runSHACLValidation()" style="background: #ef4444; color: white;">RUN FULL GRAPH VALIDATION</button>
-                <div style="display: flex; flex: 1; gap: 0.5rem; min-width: 300px;">
-                    <input type="text" id="target-node-uri" placeholder="Enter focus node URI (e.g., http://api.stardog.com/BM_Glycerine_FOB_SEA_Nov24)..." style="margin: 0;">
-                    <button onclick="runSHACLValidation(document.getElementById('target-node-uri').value.trim())" style="background: var(--accent); color: white;">VALIDATE NODE & RELATIONS</button>
+
+        <div style="overflow-y: auto; height: calc(100vh - 80px); padding: 2rem 3rem;">
+
+            <!-- What is SHACL Banner -->
+            <div style="background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(167,139,250,0.08)); border: 1px solid rgba(239,68,68,0.2); border-radius: 16px; padding: 1.5rem 2rem; margin-bottom: 2rem;">
+                <h3 style="margin: 0 0 0.75rem 0; font-family: 'Outfit'; color: #f87171; font-size: 1rem; letter-spacing: 1px;">WHAT IS SHACL?</h3>
+                <p style="margin: 0 0 1rem 0; opacity: 0.85; line-height: 1.7; font-size: 0.95rem;">
+                    <strong style="color: #a78bfa;">SHACL (Shapes Constraint Language)</strong> is a W3C standard for defining and validating the structure of RDF graph data. Apollo uses SHACL as an automated <em>Data Quality Guardian</em> — every node in the Knowledge Graph is validated against a set of shape rules before it can be queried by the AI assistant.
+                </p>
+                <!-- Pipeline Diagram -->
+                <div style="display: flex; align-items: center; gap: 0; flex-wrap: wrap; justify-content: center; margin-top: 1rem;">
+                    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.8rem; text-align: center; min-width: 110px;">
+                        <div style="font-size: 1.2rem; margin-bottom: 0.2rem;">🗄️</div>
+                        <div style="opacity: 0.7;">Source Data</div>
+                        <div style="font-size: 0.7rem; opacity: 0.5;">PostgreSQL / Market Reports</div>
+                    </div>
+                    <div style="color: rgba(255,255,255,0.3); font-size: 1.5rem; margin: 0 0.5rem;">→</div>
+                    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.8rem; text-align: center; min-width: 100px;">
+                        <div style="font-size: 1.2rem; margin-bottom: 0.2rem;">⚙️</div>
+                        <div style="opacity: 0.7;">ETL Pipeline</div>
+                        <div style="font-size: 0.7rem; opacity: 0.5;">Extract & Load</div>
+                    </div>
+                    <div style="color: rgba(255,255,255,0.3); font-size: 1.5rem; margin: 0 0.5rem;">→</div>
+                    <div style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.8rem; text-align: center; min-width: 100px;">
+                        <div style="font-size: 1.2rem; margin-bottom: 0.2rem;">🛡️</div>
+                        <div style="color: #f87171; font-weight: 600;">SHACL</div>
+                        <div style="font-size: 0.7rem; color: #f87171; opacity: 0.7;">Quality Gate</div>
+                    </div>
+                    <div style="color: rgba(255,255,255,0.3); font-size: 1.5rem; margin: 0 0.5rem;">→</div>
+                    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.8rem; text-align: center; min-width: 100px;">
+                        <div style="font-size: 1.2rem; margin-bottom: 0.2rem;">🕸️</div>
+                        <div style="opacity: 0.7;">Knowledge Graph</div>
+                        <div style="font-size: 0.7rem; opacity: 0.5;">Neo4j</div>
+                    </div>
+                    <div style="color: rgba(255,255,255,0.3); font-size: 1.5rem; margin: 0 0.5rem;">→</div>
+                    <div style="background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.8rem; text-align: center; min-width: 100px;">
+                        <div style="font-size: 1.2rem; margin-bottom: 0.2rem;">🤖</div>
+                        <div style="color: #a78bfa; font-weight: 600;">AI Assistant</div>
+                        <div style="font-size: 0.7rem; color: #a78bfa; opacity: 0.7;">LLM + Cypher</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Validation Status Summary Card -->
-            <div id="validation-summary-card" style="padding: 1.5rem; border-radius: 12px; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); margin-bottom: 2rem; display: none;">
-                <h3 id="validation-summary-title" style="margin: 0 0 0.5rem 0; font-family: 'Outfit';">Validation Complete</h3>
-                <p id="validation-summary-text" style="opacity: 0.8; margin: 0; font-size: 0.95rem;"></p>
+            <!-- Shapes Overview Section -->
+            <h3 style="font-family: 'Outfit'; margin: 0 0 1rem 0; letter-spacing: 1px; font-size: 1rem; opacity: 0.7;">ACTIVE SHAPE CONSTRAINTS</h3>
+            <div id="shacl-shapes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="text-align: center; opacity: 0.4; padding: 3rem; grid-column: 1/-1;">Loading shapes...</div>
+            </div>
+
+            <!-- Raw TTL Toggle -->
+            <div style="margin-bottom: 2rem;">
+                <button onclick="toggleRawTtl()" id="raw-ttl-toggle" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); padding: 0.5rem 1.2rem; border-radius: 8px; cursor: pointer; font-family: 'Outfit'; font-size: 0.8rem; letter-spacing: 1px;">
+                    📋 VIEW RAW shapes.ttl
+                </button>
+                <div id="raw-ttl-container" style="display: none; margin-top: 1rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.5rem; overflow-x: auto;">
+                    <pre id="raw-ttl-content" style="margin: 0; font-family: 'Courier New', monospace; font-size: 0.82rem; color: #a78bfa; white-space: pre-wrap; line-height: 1.6;"></pre>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div style="border-top: 1px solid rgba(255,255,255,0.07); margin-bottom: 2rem;"></div>
+
+            <!-- Live Validation Section -->
+            <h3 style="font-family: 'Outfit'; margin: 0 0 1rem 0; letter-spacing: 1px; font-size: 1rem; opacity: 0.7;">LIVE VALIDATION RUNNER</h3>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap;">
+                <button onclick="runSHACLValidation()" id="run-full-validation-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-family: 'Outfit'; font-weight: 600; letter-spacing: 1px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; white-space: nowrap;">
+                    🛡️ RUN FULL GRAPH VALIDATION
+                </button>
+                <div style="display: flex; flex: 1; gap: 0.5rem; min-width: 280px;">
+                    <input type="text" id="target-node-uri" placeholder="Or enter a specific node URI to validate..." style="margin: 0; font-size: 0.85rem;">
+                    <button onclick="runSHACLValidation(document.getElementById('target-node-uri').value.trim())" style="background: rgba(167,139,250,0.2); color: #a78bfa; border: 1px solid rgba(167,139,250,0.4); padding: 0.6rem 1rem; border-radius: 10px; cursor: pointer; font-family: 'Outfit'; white-space: nowrap; font-size: 0.8rem;">VALIDATE NODE</button>
+                </div>
+            </div>
+
+            <!-- Validation Summary Card -->
+            <div id="validation-summary-card" style="padding: 1.5rem; border-radius: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); margin-bottom: 1.5rem; display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h3 id="validation-summary-title" style="margin: 0 0 0.3rem 0; font-family: 'Outfit';">Validation Complete</h3>
+                        <p id="validation-summary-text" style="opacity: 0.8; margin: 0; font-size: 0.9rem;"></p>
+                    </div>
+                    <div id="violation-shape-chips" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+                </div>
             </div>
 
             <!-- Violations Table -->
-            <h3 style="font-family: 'Outfit'; margin-bottom: 1rem;">Violations Report</h3>
-            <div id="shacl-violations-container" style="overflow-x: auto; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);">
-                <p style="opacity:0.5; padding: 2rem; text-align: center;">Click one of the validation buttons above to run SHACL validation.</p>
+            <div id="shacl-violations-container" style="background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+                <p style="opacity:0.4; padding: 3rem; text-align: center; font-size: 0.9rem;">Click <strong>"Run Full Graph Validation"</strong> to scan the entire Knowledge Graph against the SHACL shapes, or enter a specific node URI to validate a single record.</p>
             </div>
+
         </div>
     </div>
 
@@ -994,10 +1063,15 @@
         });
         insightsClose.addEventListener('click', () => insightsPanel.classList.remove('active'));
 
-        shaclBtn.addEventListener('click', () => {
-            shaclPanel.classList.add('active');
+        document.getElementById('shacl-btn').addEventListener('click', () => {
+            shaclPanel.classList.toggle('active');
+            if (shaclPanel.classList.contains('active')) {
+                loadShaclShapes();
+            }
         });
-        shaclClose.addEventListener('click', () => shaclPanel.classList.remove('active'));
+        document.getElementById('shacl-close').addEventListener('click', () => {
+            shaclPanel.classList.remove('active');
+        });
 
         // Tab Switching Logic
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1189,6 +1263,83 @@
             return uri;
         }
 
+        async function loadShaclShapes() {
+            const grid = document.getElementById('shacl-shapes-grid');
+            const rawContent = document.getElementById('raw-ttl-content');
+            try {
+                const res = await fetch('/api/shacl/shapes');
+                const data = await res.json();
+                
+                // Store raw TTL
+                if (rawContent && data.shapes_ttl) {
+                    rawContent.textContent = data.shapes_ttl;
+                }
+                
+                if (!data.shapes || data.shapes.length === 0) {
+                    grid.innerHTML = '<p style="opacity:0.4; text-align:center; grid-column:1/-1;">No shapes found.</p>';
+                    return;
+                }
+                
+                grid.innerHTML = '';
+                data.shapes.forEach(shape => {
+                    const propsHtml = shape.properties.map(p => `
+                        <tr>
+                            <td style="font-family:monospace; color: ${shape.color}; font-size:0.82rem; padding: 0.4rem 0.6rem;">${p.path}</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; opacity: 0.75;">${p.constraint}</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.75rem;">
+                                <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; opacity: 0.6;">${p.type}</span>
+                            </td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.78rem; opacity: 0.6;">${p.description}</td>
+                        </tr>
+                    `).join('');
+                    
+                    const card = document.createElement('div');
+                    card.style.cssText = `background: rgba(255,255,255,0.02); border: 1px solid ${shape.color}33; border-radius: 16px; padding: 1.5rem; transition: all 0.3s; cursor: default;`;
+                    card.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                            <span style="font-size: 1.8rem;">${shape.icon}</span>
+                            <div>
+                                <div style="font-family: 'Outfit'; font-weight: 700; color: ${shape.color}; font-size: 1rem;">${shape.id}</div>
+                                <div style="font-size: 0.75rem; opacity: 0.5; font-family: monospace; margin-top: 2px;">sh:targetClass → :${shape.targetClass}</div>
+                            </div>
+                        </div>
+                        <p style="font-size: 0.85rem; opacity: 0.75; line-height: 1.6; margin: 0 0 1rem 0;">${shape.description}</p>
+                        <div style="background: ${shape.color}11; border: 1px solid ${shape.color}22; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem;">
+                            <div style="font-size: 0.72rem; color: ${shape.color}; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 0.4rem;">💼 BUSINESS IMPACT</div>
+                            <p style="font-size: 0.82rem; margin: 0; opacity: 0.8; line-height: 1.5;">${shape.businessMeaning}</p>
+                        </div>
+                        <div style="font-size: 0.72rem; letter-spacing: 0.5px; opacity: 0.5; margin-bottom: 0.5rem; font-weight: 600;">PROPERTY CONSTRAINTS</div>
+                        <div style="overflow-x: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                                <thead>
+                                    <tr style="background: rgba(255,255,255,0.04);">
+                                        <th style="text-align:left; padding: 0.4rem 0.6rem; opacity:0.5; font-weight:600; font-size:0.72rem;">Property</th>
+                                        <th style="text-align:left; padding: 0.4rem 0.6rem; opacity:0.5; font-weight:600; font-size:0.72rem;">Constraint</th>
+                                        <th style="text-align:left; padding: 0.4rem 0.6rem; opacity:0.5; font-weight:600; font-size:0.72rem;">Type</th>
+                                        <th style="text-align:left; padding: 0.4rem 0.6rem; opacity:0.5; font-weight:600; font-size:0.72rem;">Meaning</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${propsHtml}</tbody>
+                            </table>
+                        </div>
+                    `;
+                    card.addEventListener('mouseenter', () => card.style.borderColor = shape.color + '66');
+                    card.addEventListener('mouseleave', () => card.style.borderColor = shape.color + '33');
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                grid.innerHTML = `<p style="color:#ef4444; text-align:center; grid-column:1/-1;">Failed to load shapes: ${e.message}</p>`;
+            }
+        }
+
+        function toggleRawTtl() {
+            const container = document.getElementById('raw-ttl-container');
+            const btn = document.getElementById('raw-ttl-toggle');
+            const isHidden = container.style.display === 'none';
+            container.style.display = isHidden ? 'block' : 'none';
+            btn.textContent = isHidden ? '📋 HIDE RAW shapes.ttl' : '📋 VIEW RAW shapes.ttl';
+        }
+
         async function runSHACLValidation(nodeUri = null) {
             const container = document.getElementById('shacl-violations-container');
             const summaryCard = document.getElementById('validation-summary-card');
@@ -1228,24 +1379,37 @@
                 
                 // Show summary card
                 summaryCard.style.display = 'block';
+                const shapeChips = document.getElementById('violation-shape-chips');
+                shapeChips.innerHTML = '';
+                
                 if (violations.length === 0) {
                     summaryCard.style.background = 'rgba(16, 185, 129, 0.05)';
                     summaryCard.style.borderColor = 'rgba(16, 185, 129, 0.3)';
                     summaryTitle.style.color = '#10b981';
-                    summaryTitle.textContent = 'Validation Successful';
+                    summaryTitle.textContent = '✅ Validation Successful';
                     summaryText.textContent = nodeUri 
                         ? `No SHACL violations found for node <${nodeUri}> and its immediate relationships.`
-                        : 'No SHACL violations found across the entire graph.';
+                        : 'No SHACL violations found across the entire Knowledge Graph.';
                         
-                    container.innerHTML = '<p style="color:#10b981; padding:3rem; text-align:center; font-weight:500;">✓ All checks passed. Zero violations found.</p>';
+                    container.innerHTML = '<p style="color:#10b981; padding:3rem; text-align:center; font-weight:500; font-size:1.1rem;">✅ All checks passed. Zero violations found. The Knowledge Graph conforms to all defined SHACL shapes.</p>';
                 } else {
                     summaryCard.style.background = 'rgba(239, 68, 68, 0.05)';
                     summaryCard.style.borderColor = 'rgba(239, 68, 68, 0.3)';
                     summaryTitle.style.color = '#ef4444';
-                    summaryTitle.textContent = 'Validation Completed with Violations';
+                    summaryTitle.textContent = `⚠️ Found ${data.total_violations || violations.length} Violation(s)`;
                     summaryText.textContent = nodeUri
                         ? `Found ${violations.length} violation(s) associated with node <${nodeUri}>.`
-                        : `Found ${violations.length} violation(s) across the graph.`;
+                        : `Found ${violations.length} violation(s) across the graph. These are nodes that do not conform to the defined shape rules.`;
+                    
+                    // Render per-shape chips
+                    if (data.shape_summary) {
+                        Object.entries(data.shape_summary).forEach(([shape, count]) => {
+                            const chip = document.createElement('span');
+                            chip.style.cssText = 'padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3);';
+                            chip.textContent = `${shape.replace('Shape', '')} · ${count}`;
+                            shapeChips.appendChild(chip);
+                        });
+                    }
                         
                     let html = `<table>
                         <thead>

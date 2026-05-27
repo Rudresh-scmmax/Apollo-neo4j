@@ -83,6 +83,20 @@ def import_ontology(file_path):
                 """
                 res3 = session.run(q3).single()
                 print(f"Updated Obs_Acetone_US_Sept25: {res3['updated_cnt']}")
+
+                # Query 4: Clean up duplicate hasTemporalExtent relationships from multiple imports
+                print("\nCleaning up duplicate hasTemporalExtent relationships to enforce SHACL cardinality...")
+                q4 = """
+                MATCH (n:ns0__BenchmarkPrice)-[r:ns0__hasTemporalExtent]->(t)
+                WITH n, collect(r) as rels
+                WHERE size(rels) > 1
+                UNWIND tail(rels) as rel_to_delete
+                DELETE rel_to_delete
+                RETURN count(rel_to_delete) as deleted_cnt
+                """
+                res4 = session.run(q4).single()
+                print(f"Cleaned up {res4['deleted_cnt']} duplicate hasTemporalExtent relationships.")
+                
             except Exception as inner_e:
                 print(f"DETAILED ERROR: {inner_e}")
 

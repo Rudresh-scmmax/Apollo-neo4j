@@ -314,11 +314,70 @@ async def get_details(month: str):
     finally:
         driver.close()
 
+@app.get("/api/shacl/shapes")
+async def get_shacl_shapes():
+    """
+    Returns structured information about SHACL shapes defined in shapes.ttl.
+    Used for the client demo to show what integrity rules are enforced on the graph.
+    """
+    shapes = [
+        {
+            "id": "BenchmarkPriceShape",
+            "targetClass": "BenchmarkPrice",
+            "icon": "📈",
+            "color": "#a78bfa",
+            "description": "Enforces data integrity on every market benchmark price record ingested from market reports.",
+            "businessMeaning": "Guarantees that every benchmark price in the system has a valid material reference and a date — without these, price queries would return incorrect or empty results.",
+            "properties": [
+                {"path": "observedFor", "constraint": "minCount: 1", "type": "IRI", "description": "Must link to a material entity"},
+                {"path": "price_date", "constraint": "minCount: 1, maxCount: 1", "type": "String", "description": "Must have exactly one price date"},
+                {"path": "hasTemporalExtent", "constraint": "maxCount: 1", "type": "IRI", "description": "At most one temporal extent node"}
+            ]
+        },
+        {
+            "id": "MarketEventShape",
+            "targetClass": "MarketEvent",
+            "icon": "📰",
+            "color": "#f59e0b",
+            "description": "Enforces data integrity on supply disruption events and market news items (e.g., force majeure, factory shutdowns, logistics disruptions) loaded into the graph.",
+            "businessMeaning": "Ensures every news/disruption event has a title, date, and a link to the affected material. Without this, the AI cannot correctly filter or surface relevant news when users ask about market disruptions for a specific material.",
+            "properties": [
+                {"path": "title", "constraint": "minCount: 1, maxCount: 1", "type": "String", "description": "Must have exactly one headline/title"},
+                {"path": "date", "constraint": "minCount: 1, maxCount: 1", "type": "String", "description": "Must have exactly one event date"},
+                {"path": "affectsMaterial", "constraint": "minCount: 1", "type": "IRI", "description": "Must link to at least one affected material"}
+            ]
+        },
+        {
+            "id": "AssertionShape",
+            "targetClass": "Assertion",
+            "icon": "💡",
+            "color": "#10b981",
+            "description": "Enforces data integrity on market intelligence takeaways and analyst insights extracted from market research reports. These are conclusions, forecasts, and key points — NOT news events.",
+            "businessMeaning": "Guarantees that every analyst insight is linked to a specific material and has supporting evidence text. Without this, takeaway/insight searches would return orphaned records with no material context, making the AI's answers unreliable.",
+            "properties": [
+                {"path": "isAbout", "constraint": "minCount: 1", "type": "IRI", "description": "Must link to a material entity"},
+                {"path": "content", "constraint": "maxCount: 1", "type": "String", "description": "At most one content text"},
+                {"path": "snippetEvidence", "constraint": "maxCount: 1", "type": "String", "description": "At most one snippet evidence from the source report"},
+                {"path": "assertionMadeAt", "constraint": "maxCount: 1", "type": "DateTime", "description": "At most one assertion timestamp"}
+            ]
+        }
+    ]
+    
+    # Also read the raw shapes file so clients can inspect it
+    shapes_raw = ""
+    shapes_file = os.path.join(os.path.dirname(__file__), "shapes.ttl")
+    if os.path.exists(shapes_file):
+        with open(shapes_file, 'r', encoding='utf-8') as f:
+            shapes_raw = f.read()
+    
+    return {"shapes": shapes, "shapes_ttl": shapes_raw}
+
+
 @app.get("/api/validate")
 async def run_validation(node_uri: str = None):
-    shapes_file = "shapes.ttl"
+    shapes_file = os.path.join(os.path.dirname(__file__), "shapes.ttl")
     if not os.path.exists(shapes_file):
-        return {"error": f"Shapes file {shapes_file} not found"}
+        return {"error": f"Shapes file shapes.ttl not found"}
         
     with open(shapes_file, 'r', encoding='utf-8') as f:
         shacl_data = f.read()
@@ -350,11 +409,25 @@ async def run_validation(node_uri: str = None):
                 """)
                 
             violations = [record.data() for record in res]
-            return {"violations": violations, "validatedNode": node_uri}
+            
+            # Build summary grouped by shape
+            shape_summary = {}
+            for v in violations:
+                shape = v.get("shapeId", "Unknown")
+                shape_key = shape.split("/")[-1] if shape else "Unknown"
+                shape_summary[shape_key] = shape_summary.get(shape_key, 0) + 1
+            
+            return {
+                "violations": violations,
+                "total_violations": len(violations),
+                "validatedNode": node_uri,
+                "shape_summary": shape_summary
+            }
     except Exception as e:
         return {"error": str(e)}
     finally:
         driver.close()
+
 
 @app.post("/chat")
 async def chat(request: Request):

@@ -65,7 +65,6 @@ def deploy():
         ("context_compactor.py", "/home/ubuntu/apollo/context_compactor.py"),
         ("retrieval_validator.py", "/home/ubuntu/apollo/retrieval_validator.py"),
         ("import_ontology.py", "/home/ubuntu/apollo/import_ontology.py"),
-        ("process_pdf_to_neo4j.py", "/home/ubuntu/apollo/process_pdf_to_neo4j.py"),
         ("setup_vector_index.py", "/home/ubuntu/apollo/setup_vector_index.py"),
         ("static/index.html", "/home/ubuntu/apollo/static/index.html"),
         ("requirements.txt", "/home/ubuntu/apollo/requirements.txt"),
